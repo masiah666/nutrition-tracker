@@ -428,6 +428,7 @@
   function boot(username) {
     user = username;
     storageKey = "nutritrack.data." + username.toLowerCase();
+    const returning = localStorage.getItem(storageKey) != null;
     data = load();
     currentDate = toISODate(new Date());
 
@@ -438,6 +439,29 @@
 
     wireEvents();
     renderAll();
+    showWelcome(username, returning);
+  }
+
+  // Greet the user with a toast on login; auto-dismisses after a few seconds.
+  let welcomeTimer = null;
+  function showWelcome(username, returning) {
+    const toast = $("welcomeToast");
+    $("welcomeText").textContent = returning
+      ? "Welcome back, " + username + "!"
+      : "Welcome to NutriTrack, " + username + "! Log your first meal to get started.";
+    toast.classList.remove("hidden");
+    // Next frame so the entrance transition runs.
+    requestAnimationFrame(() => toast.classList.add("show"));
+    clearTimeout(welcomeTimer);
+    welcomeTimer = setTimeout(dismissWelcome, 5000);
+    $("welcomeClose").addEventListener("click", dismissWelcome);
+  }
+
+  function dismissWelcome() {
+    const toast = $("welcomeToast");
+    clearTimeout(welcomeTimer);
+    toast.classList.remove("show");
+    setTimeout(() => toast.classList.add("hidden"), 250);
   }
 
   // Wire the auth → app handoff.
