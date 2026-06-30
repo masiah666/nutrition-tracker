@@ -27,12 +27,22 @@
         };
       }
     } catch (e) {
-      console.warn("Could not read saved data:", e);
+      Log.warn("Could not read saved data:", e);
     }
     return { goal: DEFAULT_GOAL, targetWeight: null, heightCm: null, days: {}, weights: [] };
   }
 
-  function save() { localStorage.setItem(storageKey, JSON.stringify(data)); }
+  function save() {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(data));
+    } catch (e) {
+      // Quota exceeded or storage unavailable (e.g. private mode). Keep the
+      // in-memory data and UI responsive; the write just didn't persist.
+      Log.error("Could not save data:", e);
+      showToast("Couldn't save your changes — your browser storage may be full.",
+        { icon: "⚠️", type: "error" });
+    }
+  }
 
   // ---- Helpers --------------------------------------------------------------
   function toISODate(d) {
@@ -394,11 +404,15 @@
     });
 
     $("exportBtn").addEventListener("click", () => {
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url; a.download = "nutritrack-" + user + ".json"; a.click();
-      URL.revokeObjectURL(url);
+      try {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = "nutritrack-" + user + ".json"; a.click();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        Log.error("Could not export data:", e);
+      }
     });
 
     $("clearBtn").addEventListener("click", () => {
@@ -442,26 +456,41 @@
     showWelcome(username, returning);
   }
 
-  // Greet the user with a toast on login; auto-dismisses after a few seconds.
-  let welcomeTimer = null;
-  function showWelcome(username, returning) {
-    const toast = $("welcomeToast");
-    $("welcomeText").textContent = returning
-      ? "Welcome back, " + username + "!"
-      : "Welcome to NutriTrack, " + username + "! Log your first meal to get started.";
+  // Reusable notification toast. Reuses the single #toast element for
+  // both the login greeting and error notices (e.g. a failed save).
+  // opts: { icon, type: "info"|"error", timeout (ms; 0 = stay until dismissed) }
+  let toastTimer = null;
+  function showToast(message, opts) {
+    opts = opts || {};
+    const toast = $("toast");
+    $("toastIco").textContent = opts.icon || "👋";
+    $("toastText").textContent = message;
+    toast.classList.toggle("error", opts.type === "error");
     toast.classList.remove("hidden");
     // Next frame so the entrance transition runs.
     requestAnimationFrame(() => toast.classList.add("show"));
-    clearTimeout(welcomeTimer);
-    welcomeTimer = setTimeout(dismissWelcome, 5000);
-    $("welcomeClose").addEventListener("click", dismissWelcome);
+    $("toastClose").onclick = dismissToast;
+    clearTimeout(toastTimer);
+    if (opts.timeout !== 0) {
+      toastTimer = setTimeout(dismissToast, opts.timeout || 5000);
+    }
   }
 
-  function dismissWelcome() {
-    const toast = $("welcomeToast");
-    clearTimeout(welcomeTimer);
+  function dismissToast() {
+    const toast = $("toast");
+    clearTimeout(toastTimer);
     toast.classList.remove("show");
     setTimeout(() => toast.classList.add("hidden"), 250);
+  }
+
+  // Greet the user with a toast on login; auto-dismisses after a few seconds.
+  function showWelcome(username, returning) {
+    showToast(
+      returning
+        ? "Welcome back, " + username + "!"
+        : "Welcome to NutriTrack, " + username + "! Log your first meal to get started.",
+      { icon: "👋", type: "info" }
+    );
   }
 
   // Wire the auth → app handoff.

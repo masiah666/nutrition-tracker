@@ -37,7 +37,7 @@ window.Auth = (function () {
   // ---- store ----------------------------------------------------------------
   function loadUsers() {
     try { return JSON.parse(localStorage.getItem(USERS_KEY)) || {}; }
-    catch (e) { return {}; }
+    catch (e) { Log.error("Could not read user store:", e); return {}; }
   }
   function saveUsers(users) { localStorage.setItem(USERS_KEY, JSON.stringify(users)); }
 

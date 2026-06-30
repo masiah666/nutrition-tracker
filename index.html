@@ -39,11 +39,11 @@
 
   <!-- ===== App ===== -->
   <div id="app" class="hidden">
-    <!-- Welcome toast (greeting shown on login) -->
-    <div id="welcomeToast" class="welcome-toast hidden" role="status" aria-live="polite">
-      <span class="welcome-ico">👋</span>
-      <span class="welcome-text" id="welcomeText"></span>
-      <button class="welcome-close" id="welcomeClose" aria-label="Dismiss">×</button>
+    <!-- Notification toast (login greeting, save errors, etc.) -->
+    <div id="toast" class="toast hidden" role="status" aria-live="polite">
+      <span class="toast-ico" id="toastIco">👋</span>
+      <span class="toast-text" id="toastText"></span>
+      <button class="toast-close" id="toastClose" aria-label="Dismiss">×</button>
     </div>
 
     <header class="topbar">
@@ -216,6 +216,7 @@
     </main>
   </div>
 
+  <script src="log.js"></script>
   <script src="auth.js"></script>
   <script src="app.js"></script>
 </body>
