@@ -326,7 +326,7 @@ button { cursor: pointer; font-size: 0.95rem; border-radius: var(--radius-sm); b
 }
 
 /* ===== Welcome toast ===== */
-.welcome-toast {
+.toast {
   position: fixed;
   top: 20px;
   left: 50%;
@@ -345,14 +345,15 @@ button { cursor: pointer; font-size: 0.95rem; border-radius: var(--radius-sm); b
   opacity: 0;
   transition: opacity 0.25s ease, transform 0.25s ease;
 }
-.welcome-toast.show {
+.toast.show {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
-.welcome-toast.hidden { display: none; }
-.welcome-ico { font-size: 1.2rem; }
-.welcome-text { font-size: 0.92rem; font-weight: 600; }
-.welcome-close {
+.toast.hidden { display: none; }
+.toast.error { border-left-color: var(--danger); }
+.toast-ico { font-size: 1.2rem; }
+.toast-text { font-size: 0.92rem; font-weight: 600; }
+.toast-close {
   margin-left: 4px;
   border: none;
   background: transparent;
@@ -362,4 +363,4 @@ button { cursor: pointer; font-size: 0.95rem; border-radius: var(--radius-sm); b
   cursor: pointer;
   padding: 0 2px;
 }
-.welcome-close:hover { color: var(--text); }
+.toast-close:hover { color: var(--text); }
