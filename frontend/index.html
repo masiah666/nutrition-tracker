@@ -19,21 +19,21 @@
       </div>
 
       <form id="loginForm" class="auth-form">
-        <input type="text" id="loginUser" placeholder="Username" autocomplete="username" required />
+        <input type="email" id="loginEmail" placeholder="Email" autocomplete="email" required />
         <input type="password" id="loginPass" placeholder="Password" autocomplete="current-password" required />
         <button type="submit" class="primary-btn wide">Log in</button>
-        <p class="auth-error" id="loginError"></p>
+        <p class="auth-error" id="loginError" role="alert" aria-live="polite"></p>
       </form>
 
       <form id="signupForm" class="auth-form hidden">
-        <input type="text" id="signupUser" placeholder="Username" autocomplete="username" required />
-        <input type="password" id="signupPass" placeholder="Password (min 6 chars)" autocomplete="new-password" required />
+        <input type="email" id="signupEmail" placeholder="Email" autocomplete="email" required />
+        <input type="password" id="signupPass" placeholder="Password (min 8 chars)" autocomplete="new-password" minlength="8" required />
         <input type="password" id="signupPass2" placeholder="Confirm password" autocomplete="new-password" required />
         <button type="submit" class="primary-btn wide">Create account</button>
-        <p class="auth-error" id="signupError"></p>
+        <p class="auth-error" id="signupError" role="alert" aria-live="polite"></p>
       </form>
 
-      <p class="auth-note">Demo auth — accounts &amp; data are stored only in this browser.</p>
+      <p class="auth-note">Accounts are stored on the server; tracked data stays in this browser.</p>
     </div>
   </div>
 

@@ -1,73 +1,91 @@
-/* NutriTrack auth — CLIENT-SIDE ONLY.
+/* NutriTrack auth — talks to the FastAPI backend.
  *
- * This is a demo authentication layer: accounts and password hashes live in
- * this browser's localStorage. It is NOT a substitute for server-side auth.
- * The module is deliberately self-contained so it can later be swapped for a
- * real backend: replace signUp()/logIn() with fetch() calls and keep the same
- * Auth.onLogin(username) contract that app.js depends on.
+ * Accounts live in PostgreSQL behind /api; passwords are hashed server-side
+ * with bcrypt and never touch this file. The session (which account is signed
+ * in) is still kept in localStorage, so a reload keeps you logged in.
+ * app.js depends on the Auth.onLogin(identifier) contract — the identifier is
+ * now the account's email address.
  */
 window.Auth = (function () {
   "use strict";
 
-  const USERS_KEY = "nutritrack.users";       // { username: { salt, hash, createdAt } }
-  const SESSION_KEY = "nutritrack.session";    // username currently logged in
-  const PBKDF2_ITERS = 100000;
+  const SESSION_KEY = "nutritrack.session";    // email currently logged in
+  const REGISTER_URL = "/api/register";
+  const LOGIN_URL = "/api/login";
+
+  // Matches the backend's Credentials model (password: Field(min_length=8)).
+  const MIN_PASSWORD_LENGTH = 8;
 
   let onLoginCallback = null;
 
-  // ---- crypto helpers -------------------------------------------------------
-  function randomSalt() {
-    const bytes = crypto.getRandomValues(new Uint8Array(16));
-    return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+  // ---- API ------------------------------------------------------------------
+  /* Turn a non-2xx response into an Error with a message worth showing.
+   * FastAPI puts a string in `detail` for our own HTTPExceptions (409, 401)
+   * and a list of field errors there for request-validation failures (422). */
+  async function errorFromResponse(response, fallback) {
+    let detail;
+    try {
+      detail = (await response.json()).detail;
+    } catch (e) {
+      Log.error("Could not parse error response:", e);
+    }
+
+    if (typeof detail === "string") return new Error(detail);
+    if (Array.isArray(detail) && detail.length) {
+      return new Error(detail.map((d) => d.msg).filter(Boolean).join(" "));
+    }
+    return new Error(fallback);
   }
 
-  async function hashPassword(password, saltHex) {
-    const enc = new TextEncoder();
-    const keyMaterial = await crypto.subtle.importKey(
-      "raw", enc.encode(password), { name: "PBKDF2" }, false, ["deriveBits"]
-    );
-    const salt = Uint8Array.from(saltHex.match(/.{2}/g).map((h) => parseInt(h, 16)));
-    const bits = await crypto.subtle.deriveBits(
-      { name: "PBKDF2", salt, iterations: PBKDF2_ITERS, hash: "SHA-256" },
-      keyMaterial, 256
-    );
-    return [...new Uint8Array(bits)].map((b) => b.toString(16).padStart(2, "0")).join("");
-  }
+  async function post(url, email, password, fallbackError) {
+    let response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+    } catch (e) {
+      Log.error("Request to " + url + " failed:", e);
+      throw new Error("Could not reach the server. Check your connection and try again.");
+    }
 
-  // ---- store ----------------------------------------------------------------
-  function loadUsers() {
-    try { return JSON.parse(localStorage.getItem(USERS_KEY)) || {}; }
-    catch (e) { Log.error("Could not read user store:", e); return {}; }
+    if (!response.ok) throw await errorFromResponse(response, fallbackError);
+    return response.json();
   }
-  function saveUsers(users) { localStorage.setItem(USERS_KEY, JSON.stringify(users)); }
 
   // ---- public API -----------------------------------------------------------
-  async function signUp(username, password) {
-    username = username.trim();
-    if (username.length < 3) throw new Error("Username must be at least 3 characters.");
-    if (password.length < 6) throw new Error("Password must be at least 6 characters.");
-    const users = loadUsers();
-    if (users[username.toLowerCase()]) throw new Error("That username is taken.");
+  async function signUp(email, password) {
+    email = email.trim();
+    if (!email) throw new Error("Enter your email address.");
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      throw new Error("Password must be at least " + MIN_PASSWORD_LENGTH + " characters.");
+    }
 
-    const salt = randomSalt();
-    const hash = await hashPassword(password, salt);
-    users[username.toLowerCase()] = { salt, hash, displayName: username, createdAt: Date.now() };
-    saveUsers(users);
-    startSession(username);
+    // 201 -> { id, email, created_at }; 409 -> email already registered.
+    const account = await post(
+      REGISTER_URL, email, password, "Could not create your account. Please try again."
+    );
+    startSession(account.email);
   }
 
-  async function logIn(username, password) {
-    const users = loadUsers();
-    const rec = users[username.trim().toLowerCase()];
-    if (!rec) throw new Error("No account with that username.");
-    const hash = await hashPassword(password, rec.salt);
-    if (hash !== rec.hash) throw new Error("Incorrect password.");
-    startSession(rec.displayName || username);
+  async function logIn(email, password) {
+    email = email.trim();
+    if (!email) throw new Error("Enter your email address.");
+    if (!password) throw new Error("Enter your password.");
+
+    // 200 -> { id, email }; 401 -> wrong email or password.
+    const account = await post(
+      LOGIN_URL, email, password, "Could not log you in. Please try again."
+    );
+    startSession(account.email);
   }
 
-  function startSession(username) {
-    localStorage.setItem(SESSION_KEY, username);
-    if (onLoginCallback) onLoginCallback(username);
+  // The server normalises the email (trimmed, lowercased), so session state is
+  // keyed off what it returns rather than what was typed.
+  function startSession(email) {
+    localStorage.setItem(SESSION_KEY, email);
+    if (onLoginCallback) onLoginCallback(email);
   }
 
   function currentUser() { return localStorage.getItem(SESSION_KEY); }
@@ -87,6 +105,10 @@ window.Auth = (function () {
   "use strict";
   const $ = (id) => document.getElementById(id);
 
+  function showError(id, message) {
+    $(id).textContent = message;
+  }
+
   // Tab switching
   document.querySelectorAll(".auth-tab").forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -95,32 +117,51 @@ window.Auth = (function () {
       const isLogin = tab.dataset.tab === "login";
       $("loginForm").classList.toggle("hidden", !isLogin);
       $("signupForm").classList.toggle("hidden", isLogin);
-      $("loginError").textContent = "";
-      $("signupError").textContent = "";
+      showError("loginError", "");
+      showError("signupError", "");
     });
   });
 
+  // Disable the submit button while the request is in flight so a slow
+  // response can't be double-submitted.
+  async function submitting(form, run) {
+    const button = form.querySelector("button[type=submit]");
+    const label = button.textContent;
+    button.disabled = true;
+    button.textContent = "Please wait…";
+    try {
+      await run();
+    } finally {
+      button.disabled = false;
+      button.textContent = label;
+    }
+  }
+
   $("loginForm").addEventListener("submit", async (e) => {
     e.preventDefault();
-    $("loginError").textContent = "";
-    try {
-      await Auth.logIn($("loginUser").value, $("loginPass").value);
-    } catch (err) {
-      $("loginError").textContent = err.message;
-    }
+    showError("loginError", "");
+    await submitting(e.target, async () => {
+      try {
+        await Auth.logIn($("loginEmail").value, $("loginPass").value);
+      } catch (err) {
+        showError("loginError", err.message);
+      }
+    });
   });
 
   $("signupForm").addEventListener("submit", async (e) => {
     e.preventDefault();
-    $("signupError").textContent = "";
+    showError("signupError", "");
     if ($("signupPass").value !== $("signupPass2").value) {
-      $("signupError").textContent = "Passwords do not match.";
+      showError("signupError", "Passwords do not match.");
       return;
     }
-    try {
-      await Auth.signUp($("signupUser").value, $("signupPass").value);
-    } catch (err) {
-      $("signupError").textContent = err.message;
-    }
+    await submitting(e.target, async () => {
+      try {
+        await Auth.signUp($("signupEmail").value, $("signupPass").value);
+      } catch (err) {
+        showError("signupError", err.message);
+      }
+    });
   });
 })();
