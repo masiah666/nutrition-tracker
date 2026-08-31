@@ -3,15 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NutriTrack — Calorie &amp; Weight Tracker</title>
+  <title>Port Traffic — Global Port Data</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <!-- ===== Auth screen ===== -->
   <div id="authScreen" class="auth-screen">
     <div class="auth-card">
-      <div class="auth-brand"><span class="logo">🥗</span><h1>NutriTrack</h1></div>
-      <p class="auth-tagline">Track calories &amp; weight. Sign in to continue.</p>
+      <div class="auth-brand">
+        <span class="logo"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="12" r="8.5" class="mark-globe" />
+            <ellipse cx="12" cy="12" rx="3.8" ry="8.5" class="mark-globe" />
+            <path d="M3.6 12h16.8" class="mark-globe" />
+            <circle cx="18" cy="5.9" r="2.5" class="mark-node" />
+          </svg></span>
+        <h1>Port Traffic</h1>
+      </div>
+      <p class="auth-tagline">Global port data dashboard.</p>
 
       <div class="auth-tabs">
         <button class="auth-tab active" data-tab="login">Log in</button>
@@ -32,8 +40,6 @@
         <button type="submit" class="primary-btn wide">Create account</button>
         <p class="auth-error" id="signupError" role="alert" aria-live="polite"></p>
       </form>
-
-      <p class="auth-note">Accounts are stored on the server; tracked data stays in this browser.</p>
     </div>
   </div>
 
@@ -48,7 +54,12 @@
 
     <header class="topbar">
       <div class="brand">
-        <span class="brand-mark">&#9875;</span>
+        <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="8.5" class="mark-globe" />
+          <ellipse cx="12" cy="12" rx="3.8" ry="8.5" class="mark-globe" />
+          <path d="M3.6 12h16.8" class="mark-globe" />
+          <circle cx="18" cy="5.9" r="2.5" class="mark-node" />
+        </svg></span>
         <span class="brand-name">Port Traffic</span>
       </div>
       <div class="topbar-right">
@@ -60,11 +71,61 @@
 
     <main>
       <section class="panel">
-        <h2>Container throughput by country, 2019</h2>
+        <h2>Container throughput by country</h2>
         <p class="panel-sub" id="chartSub">Loading&hellip;</p>
+        <div class="chart-controls">
+          <select id="regionFilter" aria-label="Filter by region">
+            <option value="">All regions</option>
+          </select>
+          <input type="search" id="countrySearch" aria-label="Find a country"
+                 placeholder="Find a country&hellip;" autocomplete="off" />
+        </div>
         <svg id="topCountriesChart" viewBox="0 0 600 320"></svg>
       </section>
+
+      <section class="panel">
+        <h2>Compare countries</h2>
+        <p class="panel-sub" id="compareSub">Loading&hellip;</p>
+        <div class="chart-controls">
+          <select id="compareAdd" aria-label="Add a country to compare">
+            <option value="">Add a country&hellip;</option>
+          </select>
+          <div class="segmented" id="compareMeasure" role="group" aria-label="Measure">
+            <button type="button" class="seg" data-measure="indexed" aria-pressed="true">Indexed</button>
+            <button type="button" class="seg" data-measure="absolute" aria-pressed="false">Absolute TEU</button>
+          </div>
+        </div>
+        <ul class="chips" id="compareChips"></ul>
+        <div class="chart-wrap">
+          <svg id="compareChart" viewBox="0 0 720 340"></svg>
+          <div class="chart-tip hidden" id="compareTip" role="status" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Regional throughput over time</h2>
+        <p class="panel-sub" id="regionSub">Loading&hellip;</p>
+        <div class="chart-wrap">
+          <svg id="regionsChart" viewBox="0 0 720 340"></svg>
+          <div class="chart-tip hidden" id="regionTip" role="status" aria-live="polite"></div>
+        </div>
+        <ul class="legend" id="regionLegend"></ul>
+      </section>
     </main>
+
+    <!-- Country detail. Opened from a bar in the per-country chart; a panel
+         further down the page was too easy to miss. -->
+    <div id="countryModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="countryTitle">
+      <section class="panel modal-panel" id="countryPanel">
+        <button class="modal-close" id="countryClose" aria-label="Close country detail">×</button>
+        <h2 id="countryTitle">Country time series</h2>
+        <p class="panel-sub" id="countrySub">Loading&hellip;</p>
+        <div class="chart-wrap">
+          <svg id="countryChart" viewBox="0 0 720 260"></svg>
+          <div class="chart-tip hidden" id="countryTip" role="status" aria-live="polite"></div>
+        </div>
+      </section>
+    </div>
   </div>
 
   <script src="log.js"></script>

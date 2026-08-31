@@ -1,4 +1,4 @@
-/* NutriTrack logging — tiny shared wrapper over console.
+/* Port Traffic logging — tiny shared wrapper over console.
  *
  * Keeps error/warning output consistent across the app. Each call leads with a
  * short message describing the operation that failed, and passes the original
@@ -7,7 +7,7 @@
 window.Log = (function () {
   "use strict";
 
-  const PREFIX = "[NutriTrack]";
+  const PREFIX = "[PortTraffic]";
 
   function logError(message, err) {
     console.error(PREFIX, message, err);
