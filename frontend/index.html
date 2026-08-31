@@ -48,176 +48,27 @@
 
     <header class="topbar">
       <div class="brand">
-        <span class="logo">🥗</span>
-        <h1>NutriTrack</h1>
+        <span class="brand-mark">&#9875;</span>
+        <span class="brand-name">Port Traffic</span>
       </div>
-      <div class="date-nav">
-        <button id="prevDay" class="icon-btn" aria-label="Previous day">‹</button>
-        <input type="date" id="datePicker" />
-        <button id="nextDay" class="icon-btn" aria-label="Next day">›</button>
-        <button id="todayBtn" class="ghost-btn">Today</button>
-      </div>
-      <div class="user-chip">
+      <div class="topbar-right">
         <span class="avatar" id="userAvatar">U</span>
         <span id="userName">user</span>
         <button id="logoutBtn" class="ghost-btn">Log out</button>
       </div>
     </header>
 
-    <!-- Tab navigation -->
-    <nav class="tabbar" id="tabbar">
-      <button class="tab-btn active" data-tab="today"><span class="tab-ico">📅</span>Today</button>
-      <button class="tab-btn" data-tab="analytics"><span class="tab-ico">📈</span>Analytics</button>
-      <button class="tab-btn" data-tab="settings"><span class="tab-ico">⚙️</span>Settings</button>
-    </nav>
-
     <main>
-      <!-- ===== TODAY ===== -->
-      <section class="tab-panel active" id="tab-today">
-        <!-- Summary cards -->
-        <div class="cards">
-          <div class="card">
-            <div class="card-label">Consumed</div>
-            <div class="card-value"><span id="consumed">0</span><span class="unit">kcal</span></div>
-          </div>
-          <div class="card">
-            <div class="card-label">Goal</div>
-            <div class="card-value"><span id="goalValue">2000</span><span class="unit">kcal</span></div>
-          </div>
-          <div class="card">
-            <div class="card-label">Remaining</div>
-            <div class="card-value"><span id="remaining">2000</span><span class="unit">kcal</span></div>
-          </div>
-          <div class="card progress-card">
-            <div class="card-label">Daily progress</div>
-            <div class="progress-track"><div id="progressBar" class="progress-fill"></div></div>
-            <div id="progressText" class="progress-text">0%</div>
-          </div>
-        </div>
-
-        <div class="columns">
-          <!-- Food log -->
-          <section class="panel">
-            <h2>Food log</h2>
-            <form id="foodForm" class="inline-form">
-              <input type="text" id="foodName" placeholder="Food (e.g. Banana)" required />
-              <input type="number" id="foodCals" placeholder="kcal" min="0" step="1" required />
-              <button type="submit" class="primary-btn">Add</button>
-            </form>
-            <ul id="foodList" class="entry-list"></ul>
-            <p id="foodEmpty" class="empty">No food logged for this day yet.</p>
-          </section>
-
-          <!-- Weight & BMI -->
-          <section class="panel">
-            <h2>Weight</h2>
-            <form id="weightForm" class="inline-form">
-              <input type="number" id="weightValue" placeholder="Weight" min="0" step="0.1" required />
-              <select id="weightUnit">
-                <option value="kg">kg</option>
-                <option value="lb">lb</option>
-              </select>
-              <button type="submit" class="primary-btn">Log</button>
-            </form>
-
-            <div class="weight-stats">
-              <div><span class="stat-num" id="latestWeight">—</span><span class="stat-cap">Latest</span></div>
-              <div><span class="stat-num" id="weightChange">—</span><span class="stat-cap">Change</span></div>
-            </div>
-
-            <!-- BMI gauge -->
-            <div class="bmi-card">
-              <div class="bmi-head">
-                <span class="bmi-title">Body Mass Index</span>
-                <span class="bmi-cat-badge" id="bmiCategory">BMI</span>
-              </div>
-              <div class="bmi-num"><span id="bmiValue">—</span></div>
-              <div class="bmi-scale">
-                <span class="bmi-zone under"></span>
-                <span class="bmi-zone normal"></span>
-                <span class="bmi-zone over"></span>
-                <span class="bmi-zone obese"></span>
-                <span class="bmi-marker" id="bmiMarker"></span>
-              </div>
-              <div class="bmi-legend">
-                <span><i class="dot-under"></i>Under</span>
-                <span><i class="dot-normal"></i>Normal</span>
-                <span><i class="dot-over"></i>Over</span>
-                <span><i class="dot-obese"></i>Obese</span>
-              </div>
-            </div>
-
-            <div class="chart-wrap">
-              <svg id="weightChart" viewBox="0 0 400 180" preserveAspectRatio="none"></svg>
-              <p id="weightEmpty" class="empty">Log your weight to see a trend.</p>
-            </div>
-          </section>
-        </div>
-      </section>
-
-      <!-- ===== ANALYTICS ===== -->
-      <section class="tab-panel" id="tab-analytics">
-        <section class="panel">
-          <div class="panel-head">
-            <h2>Analytics</h2>
-            <div class="range-toggle" id="rangeToggle">
-              <button data-range="7">7d</button>
-              <button data-range="14" class="active">14d</button>
-              <button data-range="30">30d</button>
-            </div>
-          </div>
-
-          <div class="stat-grid" id="statGrid"></div>
-
-          <h3 class="sub">Calorie intake</h3>
-          <div class="chart-wrap">
-            <svg id="calorieChart" viewBox="0 0 600 220"></svg>
-            <p id="calorieEmpty" class="empty">Log some food to see calorie trends.</p>
-          </div>
-
-          <h3 class="sub">Weight trend <span class="muted-inline">(line = weight, dashed = 7-day average)</span></h3>
-          <div class="chart-wrap">
-            <svg id="weightTrendChart" viewBox="0 0 600 220"></svg>
-            <p id="weightTrendEmpty" class="empty">Log weight on a few days to see the trend.</p>
-          </div>
-        </section>
-      </section>
-
-      <!-- ===== SETTINGS ===== -->
-      <section class="tab-panel" id="tab-settings">
-        <section class="panel">
-          <h2>Settings</h2>
-          <form id="settingsForm" class="settings-form">
-            <div class="settings-grid">
-              <label class="field">Daily calorie goal
-                <input type="number" id="goalInput" min="0" step="50" />
-              </label>
-              <label class="field">Height (cm)
-                <input type="number" id="heightInput" min="0" step="0.1" />
-              </label>
-              <label class="field">Target weight (optional)
-                <input type="number" id="targetWeightInput" min="0" step="0.1" />
-              </label>
-            </div>
-            <div class="settings-actions">
-              <button type="submit" class="primary-btn">Save</button>
-              <button type="button" id="exportBtn" class="ghost-btn">Export data</button>
-            </div>
-          </form>
-          <div class="danger-zone">
-            <div>
-              <div class="danger-title">Clear my data</div>
-              <p class="danger-desc">Permanently delete all tracked food &amp; weight for this account.</p>
-            </div>
-            <button type="button" id="clearBtn" class="danger-btn">Clear my data</button>
-          </div>
-        </section>
+      <section class="panel">
+        <h2>Container throughput by country, 2019</h2>
+        <p class="panel-sub" id="chartSub">Loading&hellip;</p>
+        <svg id="topCountriesChart" viewBox="0 0 600 320"></svg>
       </section>
     </main>
   </div>
 
   <script src="log.js"></script>
   <script src="auth.js"></script>
-  <script src="app.js"></script>
+  <script src="dashboard.js"></script>
 </body>
 </html>

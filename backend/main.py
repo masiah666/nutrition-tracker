@@ -21,6 +21,9 @@ DB_NAME = os.getenv("DB_NAME", "nutritrack")
 DB_USER = os.getenv("DB_USER", "nutritrack")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 DB_PORT = os.getenv("DB_PORT", "5432")
+PORT_DB_NAME = os.getenv("PORT_DB_NAME", "portdata")
+PORT_DB_USER = os.getenv("PORT_DB_USER", DB_USER)
+PORT_DB_PASSWORD = os.getenv("PORT_DB_PASSWORD", DB_PASSWORD)
 
 # bcrypt only consults the first 72 bytes of the password; reject anything
 # longer rather than silently truncating it.
@@ -49,6 +52,20 @@ def conninfo() -> str:
 @contextmanager
 def get_connection():
     with psycopg.connect(conninfo()) as conn:
+        yield conn
+def port_conninfo() -> str:
+    return psycopg.conninfo.make_conninfo(
+        host=DB_HOST,
+        port=DB_PORT,
+        dbname=PORT_DB_NAME,
+        user=PORT_DB_USER,
+        password=PORT_DB_PASSWORD,
+    )
+
+
+@contextmanager
+def get_port_connection():
+    with psycopg.connect(port_conninfo()) as conn:
         yield conn
 
 
@@ -149,3 +166,88 @@ def login(credentials: Credentials):
         )
 
     return {"id": user_id, "email": user_email}
+@app.get("/api/port/countries")
+def port_countries():
+    """Per-country traffic summary, ranked by 2019 TEU."""
+    with get_port_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT country_iso3, country_name, region_name,
+                       teu_2019, teu_2010, latest_year, latest_teu,
+                       cagr_2010_2019, rank_2019
+                FROM port_mart.country_traffic_summary
+                WHERE teu_2019 IS NOT NULL
+                ORDER BY rank_2019
+                """
+            )
+            rows = cur.fetchall()
+
+    return [
+        {
+            "iso3": r[0],
+            "name": r[1],
+            "region": r[2],
+            "teu_2019": r[3],
+            "teu_2010": r[4],
+            "latest_year": r[5],
+            "latest_teu": r[6],
+            "cagr": r[7],
+            "rank": r[8],
+        }
+        for r in rows
+    ]
+@app.get("/api/port/regions")
+def port_regions():
+    """Regional traffic totals by year, for trend charts."""
+    with get_port_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT region_code, region_name, traffic_year,
+                       total_teu, countries_reporting, mean_teu
+                FROM port_mart.traffic_by_region_year
+                ORDER BY region_name, traffic_year
+                """
+            )
+            rows = cur.fetchall()
+
+    return [
+        {
+            "region_code": r[0],
+            "region": r[1],
+            "year": r[2],
+            "total_teu": r[3],
+            "countries_reporting": r[4],
+            "mean_teu": r[5],
+        }
+        for r in rows
+    ]
+
+
+@app.get("/api/port/country/{iso3}")
+def port_country(iso3: str):
+    """Full time series for one country."""
+    with get_port_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT traffic_year, teu
+                FROM port_raw.country_port_traffic
+                WHERE country_iso3 = %s
+                ORDER BY traffic_year
+                """,
+                (iso3.upper(),),
+            )
+            rows = cur.fetchall()
+
+    if not rows:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No traffic data for {iso3}.",
+        )
+
+    return {
+        "iso3": iso3.upper(),
+        "series": [{"year": r[0], "teu": r[1]} for r in rows],
+    }
