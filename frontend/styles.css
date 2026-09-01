@@ -11,6 +11,12 @@
   /* Selected state in the bar chart. Kept distinct from --cyan so a selected
      bar is unmistakable against its neighbours. */
   --accent: #4ade80;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  /* Register quality. One colour per status the API computes, always paired
+     with a glyph and a word so the status never rests on colour alone. */
+  --q-green: #4ade80;
+  --q-amber: #fbbf24;
+  --q-red: #f87171;
   --radius: 12px;
   --radius-sm: 8px;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
@@ -72,6 +78,111 @@ main {
   font-size: 1rem; margin-bottom: 14px; font-weight: 600; letter-spacing: -0.1px;
 }
 .panel-sub { color: var(--muted); font-size: 0.85rem; margin: -8px 0 16px; }
+
+/* ===== Quality status =====
+   Shared by the data register and the badges on the dashboard panels, so
+   one status renders identically wherever it is shown. */
+/* Colour, glyph and word together — never colour alone. */
+.q-dot {
+  flex: none; width: 16px; height: 16px; margin-top: 2px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; font-size: 0.62rem; font-weight: 700; color: var(--bg);
+}
+.q-dot.q-green { background: var(--q-green); }
+.q-dot.q-amber { background: var(--q-amber); }
+.q-dot.q-red { background: var(--q-red); }
+
+.q-pill {
+  display: inline-flex; align-items: center; gap: 6px; flex: none;
+  padding: 3px 10px 3px 8px; border-radius: 999px;
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.02em;
+  border: 1px solid currentColor;
+}
+.q-pill.q-green { color: var(--q-green); }
+.q-pill.q-amber { color: var(--q-amber); }
+.q-pill.q-red { color: var(--q-red); }
+.q-glyph { font-size: 0.78rem; line-height: 1; }
+
+/* ===== Panel quality badge =====
+   The register's verdict on the data a panel is drawn from, in its corner.
+   Small and quiet by design — it sits beside a chart, not on top of it. */
+.panel-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 14px;
+}
+.q-slot { flex: none; }
+
+/* Nothing renders until the status is known: an empty corner is honest, a
+   green dot that has not been earned is not. */
+.q-badge { position: relative; display: none; }
+.q-badge.q-badge-ready { display: block; }
+
+.q-badge-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent; border: none; padding: 2px;
+  font-size: 0.72rem; opacity: 0.82;
+}
+.q-badge:hover .q-badge-btn, .q-badge-btn:focus-visible { opacity: 1; }
+.q-badge-btn:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; border-radius: 999px; }
+.q-badge-btn:disabled { cursor: default; }
+.q-badge-dot { width: 14px; height: 14px; margin-top: 0; font-size: 0.56rem; }
+.q-dot.q-unknown { background: var(--muted); }
+/* Green is left to the dot alone. Amber and red carry the word too, so a
+   problem in the corner of a chart is never colour on its own. */
+.q-badge-word { font-weight: 700; letter-spacing: 0.02em; }
+.q-badge-word.q-amber { color: var(--q-amber); }
+.q-badge-word.q-red { color: var(--q-red); }
+
+/* Hangs below the dot, aligned to the panel's right edge. */
+.q-badge-pop {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 20;
+  width: 310px; max-width: calc(100vw - 56px);
+  padding: 12px 14px;
+  text-align: left; cursor: default;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+.q-pop-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.q-pop-key {
+  font-family: var(--mono); font-size: 0.7rem; color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.q-pop-note { color: var(--muted); font-size: 0.76rem; margin-top: 8px; }
+/* An asset with nothing verifying it is a finding, not a blank slot. */
+.q-pop-bad { color: var(--q-red); }
+.q-pop-checks { color: var(--muted); font-size: 0.76rem; margin-top: 10px; }
+
+.q-check-list { list-style: none; display: flex; flex-direction: column; gap: 7px; }
+.q-check {
+  display: flex; flex-direction: column; gap: 1px;
+  padding-left: 8px; border-left: 2px solid var(--border);
+}
+.q-check-pass { border-left-color: var(--q-green); }
+.q-check-fail { border-left-color: var(--q-red); }
+.q-check-head { display: flex; align-items: baseline; gap: 6px; }
+.q-check-glyph { font-size: 0.72rem; font-weight: 700; }
+.q-check-pass .q-check-glyph { color: var(--q-green); }
+.q-check-fail .q-check-glyph { color: var(--q-red); }
+.q-check-name {
+  font-family: var(--mono); font-size: 0.72rem; font-weight: 600;
+  color: var(--text); overflow-wrap: anywhere;
+}
+.q-check-detail { color: var(--muted); font-size: 0.72rem; }
+
+.q-pop-foot {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+  margin-top: 11px; padding-top: 10px; border-top: 1px solid var(--border);
+}
+.q-pop-source { font-size: 0.74rem; color: var(--text); }
+.q-pop-run { font-size: 0.7rem; color: var(--muted); }
+.q-pop-link {
+  margin-top: 5px; padding: 0;
+  background: transparent; color: var(--cyan);
+  font-size: 0.76rem; font-weight: 600; text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.q-pop-link:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 
 /* ===== Forms ===== */
 input, select {
@@ -327,8 +438,8 @@ button { cursor: pointer; font-size: 0.95rem; border-radius: var(--radius-sm); b
   margin: auto;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
 }
-/* Keeps the title clear of the close button. */
-.modal-panel h2 { padding-right: 40px; }
+/* Keeps the title and its badge clear of the close button. */
+.modal-panel .panel-head { padding-right: 42px; }
 .modal-close {
   position: absolute;
   top: 12px;
@@ -346,3 +457,148 @@ button { cursor: pointer; font-size: 0.95rem; border-radius: var(--radius-sm); b
 
 /* No scrolling the dashboard behind the overlay. */
 body.modal-open { overflow: hidden; }
+
+/* ===== Data register ===== */
+
+/* The view switcher sits between the brand and the user chip, so it does not
+   take the `margin-left: auto` the measure switch uses inside a card. */
+.viewnav { margin-left: 0; }
+.seg[aria-pressed="true"] { font-weight: 600; }
+
+/* Asset list beside the detail. One column once the detail pane would be
+   narrower than its field table. */
+.register-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.asset-group + .asset-group { margin-top: 20px; }
+.asset-group-title {
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 8px;
+}
+.asset-list-items { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+
+.asset-item {
+  width: 100%; display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 12px; text-align: left;
+  background: transparent; border: 1px solid transparent;
+  color: var(--text); font-size: 0.85rem;
+}
+.asset-item:hover { background: var(--surface-2); }
+.asset-item:focus-visible { outline: 2px solid var(--cyan); outline-offset: 1px; }
+.asset-item[aria-pressed="true"] {
+  background: var(--surface-2); border-color: var(--border);
+}
+.asset-item-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* Asset keys are identifiers, not prose — they wrap rather than truncate, so
+   a long key is never cut off mid-name. */
+.asset-key {
+  font-family: var(--mono); font-size: 0.78rem; line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.asset-item-meta { color: var(--muted); font-size: 0.74rem; }
+
+/* ===== Asset detail ===== */
+.asset-detail {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  min-width: 0;
+}
+.detail-header {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px;
+}
+.detail-key {
+  font-family: var(--mono); font-size: 0.95rem; font-weight: 600;
+  overflow-wrap: anywhere;
+}
+/* Why the status is what it is, directly under it. */
+.detail-quality-note { color: var(--muted); font-size: 0.8rem; margin-top: 6px; }
+.detail-description { font-size: 0.88rem; margin-top: 14px; }
+.detail-source { color: var(--muted); font-size: 0.8rem; margin-top: 12px; }
+
+.detail-section-title {
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--muted);
+  margin: 26px 0 10px; padding-top: 16px; border-top: 1px solid var(--border);
+}
+
+.meta-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 14px 18px; margin-top: 18px;
+}
+.meta-item dt {
+  color: var(--muted); font-size: 0.68rem; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 2px;
+}
+.meta-item dd { font-size: 0.85rem; }
+
+/* ===== Lineage ===== */
+.lineage { display: flex; flex-direction: column; gap: 12px; }
+.lineage-group { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; }
+.lineage-label {
+  color: var(--muted); font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.04em; text-transform: uppercase; min-width: 82px;
+}
+.lineage-chips { margin-bottom: 0; }
+.lineage-none { color: var(--muted); font-size: 0.78rem; }
+/* An edge to another registered asset is navigable; one to an unregistered
+   asset keeps the plain chip. */
+.chip-link {
+  font-family: var(--mono); font-size: 0.74rem; color: var(--text);
+  padding: 4px 10px; border-radius: 999px;
+}
+.chip-link:hover { border-color: var(--cyan); color: var(--cyan); }
+.chip-link:focus-visible { outline: 2px solid var(--cyan); outline-offset: 1px; }
+
+/* ===== Quality checks ===== */
+.check-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.check {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+}
+.check-pass { border-left-color: var(--q-green); }
+.check-fail { border-left-color: var(--q-red); }
+.check-head { display: flex; align-items: baseline; gap: 8px; }
+.check-glyph { font-size: 0.8rem; font-weight: 700; }
+.check-pass .check-glyph { color: var(--q-green); }
+.check-fail .check-glyph { color: var(--q-red); }
+.check-name { font-family: var(--mono); font-size: 0.8rem; font-weight: 600; overflow-wrap: anywhere; }
+.check-when { margin-left: auto; color: var(--muted); font-size: 0.72rem; white-space: nowrap; }
+.check-detail { color: var(--muted); font-size: 0.78rem; }
+
+/* ===== Field table ===== */
+/* Five columns will not fit a narrow detail pane. The table scrolls; the page
+   never does. */
+.table-wrap { overflow-x: auto; }
+.field-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.field-table th {
+  text-align: left; color: var(--muted); font-weight: 700;
+  font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 0 14px 8px 0; border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.field-table td {
+  padding: 9px 14px 9px 0; border-bottom: 1px solid var(--border); vertical-align: top;
+}
+.field-table tr:last-child td { border-bottom: none; }
+.field-name { font-family: var(--mono); font-size: 0.76rem; white-space: nowrap; }
+.field-type { font-family: var(--mono); font-size: 0.74rem; color: var(--muted); white-space: nowrap; }
+.field-unit, .field-null { color: var(--muted); white-space: nowrap; }
+
+.empty-note { color: var(--muted); font-size: 0.82rem; }
+/* An asset with nothing verifying it is a finding, not a blank slot. */
+.empty-bad { color: var(--q-red); }
+
+@media (max-width: 860px) {
+  .register-layout { grid-template-columns: 1fr; gap: 18px; }
+  .asset-list-items { gap: 4px; }
+}

@@ -45,6 +45,15 @@ and must be read-only — `PORT_DB_USER` may later point at a SELECT-only role.
 - `auth.js` — login/signup. **Do not modify.** It self-runs on load and requires
   the auth markup (`loginForm`, `signupEmail`, `.auth-tab`, etc.) to exist.
 - `dashboard.js` — fetches the port endpoints, renders SVG charts
+- `register.js` — the data register view, and the topbar switch between it and
+  the dashboard. The switch lives here because `Auth.onLogin` takes a single
+  callback and `dashboard.js` holds it; the register loads on first view.
+- `quality.js` — the quality badge in each dashboard panel's corner, plus the
+  status vocabulary (colours, glyphs, the 48-hour stale rule, time formatting)
+  and the single `/api/registry/assets` fetch that `register.js` shares. Load
+  it before `dashboard.js` and `register.js`, which both read `Quality`.
+  "Full details" fires a `registry:open` event; `register.js` opens the asset,
+  `dashboard.js` closes the country modal.
 - `app.js` — dead nutrition code, no longer loaded, safe to delete
 - `styles.css` — shared; contains nutrition-era rules that can be pruned
 
@@ -66,3 +75,21 @@ and must be read-only — `PORT_DB_USER` may later point at a SELECT-only role.
   comparisons use 2019. Coordinates in `country_dim` are capital cities,
   not ports — do not present them as port locations.
 EOF
+
+## Registry API (the data register)
+
+- `GET /api/registry/assets` — every dataset with a computed `quality` field:
+  "green" (all checks passed, run within 48h), "amber" (passed but stale),
+  "red" (any check failed, or no checks exist)
+- `GET /api/registry/asset/{key}` — one asset in full: `fields` (name, type,
+  description, unit, nullable), `checks` (name, passed, detail, checked_at),
+  `upstream` and `downstream` (lineage keys)
+
+The list endpoint carries check *counts* only, so a dashboard badge shows its
+status from the one list fetch and pulls the individual checks from the asset
+endpoint the first time it is opened.
+
+The registry is populated by the Mage pipelines themselves — quality checks
+run inside the exporters and upsert their latest result per (asset, check).
+The register UI must never invent or soften a status: red and amber are
+information, not embarrassments to hide.
