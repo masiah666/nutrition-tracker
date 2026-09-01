@@ -251,3 +251,116 @@ def port_country(iso3: str):
         "iso3": iso3.upper(),
         "series": [{"year": r[0], "teu": r[1]} for r in rows],
     }
+STALE_AFTER_HOURS = 48
+
+
+@app.get("/api/registry/assets")
+def registry_assets():
+    """The data register: every asset with a computed quality status."""
+    with get_port_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT a.asset_key, a.layer, a.description, a.source_system,
+                       a.grain, a.owner, a.last_row_count, a.last_run_at,
+                       COUNT(q.check_name)              AS checks_total,
+                       COUNT(*) FILTER (WHERE q.passed) AS checks_passed,
+                       a.last_run_at < now() - make_interval(hours => %s) AS stale
+                FROM registry.assets a
+                LEFT JOIN registry.quality_checks q ON q.asset_key = a.asset_key
+                GROUP BY a.asset_key
+                ORDER BY a.layer, a.asset_key
+                """,
+                (STALE_AFTER_HOURS,),
+            )
+            rows = cur.fetchall()
+
+    out = []
+    for r in rows:
+        checks_total, checks_passed, stale = r[8], r[9], r[10]
+        if checks_total == 0 or checks_passed < checks_total:
+            quality = "red"
+        elif stale:
+            quality = "amber"
+        else:
+            quality = "green"
+        out.append({
+            "asset_key": r[0], "layer": r[1], "description": r[2],
+            "source_system": r[3], "grain": r[4], "owner": r[5],
+            "row_count": r[6], "last_run_at": r[7],
+            "checks_total": checks_total, "checks_passed": checks_passed,
+            "quality": quality,
+        })
+    return out
+@app.get("/api/registry/asset/{asset_key}")
+def registry_asset(asset_key: str):
+    """One asset in full: fields, checks, and lineage."""
+    with get_port_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT asset_key, layer, description, source_system,
+                       source_detail, grain, owner, last_row_count, last_run_at
+                FROM registry.assets
+                WHERE asset_key = %s
+                """,
+                (asset_key,),
+            )
+            asset = cur.fetchone()
+            if asset is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"No asset named {asset_key}.",
+                )
+
+            cur.execute(
+                """
+                SELECT field_name, data_type, description, unit, is_nullable
+                FROM registry.fields
+                WHERE asset_key = %s
+                ORDER BY field_name
+                """,
+                (asset_key,),
+            )
+            fields = cur.fetchall()
+
+            cur.execute(
+                """
+                SELECT check_name, passed, detail, checked_at
+                FROM registry.quality_checks
+                WHERE asset_key = %s
+                ORDER BY check_name
+                """,
+                (asset_key,),
+            )
+            checks = cur.fetchall()
+
+            cur.execute(
+                "SELECT from_asset FROM registry.edges WHERE to_asset = %s",
+                (asset_key,),
+            )
+            upstream = [r[0] for r in cur.fetchall()]
+
+            cur.execute(
+                "SELECT to_asset FROM registry.edges WHERE from_asset = %s",
+                (asset_key,),
+            )
+            downstream = [r[0] for r in cur.fetchall()]
+
+    return {
+        "asset_key": asset[0], "layer": asset[1], "description": asset[2],
+        "source_system": asset[3], "source_detail": asset[4],
+        "grain": asset[5], "owner": asset[6],
+        "row_count": asset[7], "last_run_at": asset[8],
+        "fields": [
+            {"name": f[0], "type": f[1], "description": f[2],
+             "unit": f[3], "nullable": f[4]}
+            for f in fields
+        ],
+        "checks": [
+            {"name": c[0], "passed": c[1], "detail": c[2], "checked_at": c[3]}
+            for c in checks
+        ],
+        "upstream": upstream,
+        "downstream": downstream,
+    }
