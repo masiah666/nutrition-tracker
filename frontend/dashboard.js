@@ -780,6 +780,8 @@
   function load() {
     loadCountries();
     loadRegions();
+    /* Fills the quality badge in each panel's corner from the data register. */
+    Quality.load();
   }
 
   function showApp(email) {
@@ -811,6 +813,10 @@
   });
 
   $("countryClose").addEventListener("click", closeCountryModal);
+
+  /* The modal's own quality badge links through to the register, which is
+     behind the overlay — so the overlay goes first. */
+  document.addEventListener("registry:open", closeCountryModal);
 
   /* Only a click on the backdrop itself closes; clicks inside the panel bubble
      up to it but arrive with the panel as target. */
