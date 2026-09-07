@@ -25,6 +25,11 @@ Two databases on the same PostgreSQL server:
   - `port_raw.country_dim` — one row per entity (295), `is_aggregate` flags non-countries
   - `port_mart.country_traffic_summary` — one row per country (168)
   - `port_mart.traffic_by_region_year` — one row per region per year (121)
+  - `port_raw.portwatch_ports` — one row per PortWatch port (2,065)
+  - `port_raw.port_calls_monthly` — one row per port per month, calls by vessel type
+  - `port_raw.port_connections` — one row per directed port pair (226,904)
+  - `port_mart.port_calls_by_type_month` — the monthly calls, named and located
+  - `port_mart.port_connection_summary` — the port pairs, ranked, domestic flagged
   - `registry.assets`, `registry.fields`, `registry.edges` — self-maintained metadata
 
 `backend/main.py` has two connections: `get_connection()` for auth, and
@@ -38,6 +43,10 @@ and must be read-only — `PORT_DB_USER` may later point at a SELECT-only role.
 - `GET /api/port/countries` — ranked country summary
 - `GET /api/port/regions` — regional totals by year
 - `GET /api/port/country/{iso3}` — full time series for one country
+- `GET /api/port/calls/ports` — ports with arrival data, busiest 12 months first
+- `GET /api/port/calls/{portid}` — monthly arrivals at one port, by vessel type
+- `GET /api/port/connections/{portid}` — one port's origin and destination legs,
+  both directions in one response so the card's toggles never refetch
 
 ## Frontend
 
@@ -48,6 +57,10 @@ and must be read-only — `PORT_DB_USER` may later point at a SELECT-only role.
 - `register.js` — the data register view, and the topbar switch between it and
   the dashboard. The switch lives here because `Auth.onLogin` takes a single
   callback and `dashboard.js` holds it; the register loads on first view.
+- `vessels.js` — the two vessel-arrival cards: arrivals by type over time, and
+  the origin/destination legs for one port. Owns its own state and fetches;
+  `dashboard.js` calls `Vessels.load()` for the same reason it holds the
+  register switch. Must load before `dashboard.js`.
 - `quality.js` — the quality badge in each dashboard panel's corner, plus the
   status vocabulary (colours, glyphs, the 48-hour stale rule, time formatting)
   and the single `/api/registry/assets` fetch that `register.js` shares. Load
@@ -74,6 +87,18 @@ and must be read-only — `PORT_DB_USER` may later point at a SELECT-only role.
 - World Bank data: coverage drops sharply after 2019, so cross-country
   comparisons use 2019. Coordinates in `country_dim` are capital cities,
   not ports — do not present them as port locations.
+- PortWatch has no vessel size or class dimension, and no free source has one
+  at port-call grain. The arrivals card counts ships, not capacity — do not
+  add a size filter without a source that actually carries it.
+- No free source publishes a transhipment split per port pair either. The
+  origin/destination card offers domestic vs international instead, and says
+  so on the panel. `is_domestic` is not a transhipment flag; do not relabel it.
+- PortWatch republishes weekly, so the newest month in `port_calls_monthly` is
+  always partial. The API names it in `partial_month` and the card drops it —
+  drawn, it looks like a collapse that has not happened.
+- `ingest/portwatch_load.py` is the seed load, run by hand against the backend
+  container. The recurring refresh belongs in a Mage pipeline; until it exists,
+  the PortWatch assets go amber 48 hours after each manual run.
 EOF
 
 ## Registry API (the data register)

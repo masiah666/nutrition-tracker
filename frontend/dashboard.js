@@ -780,6 +780,10 @@
   function load() {
     loadCountries();
     loadRegions();
+    /* The vessel-arrival cards keep their own state and their own fetches; this
+       is the only hand-off, because Auth.onLogin takes a single callback and it
+       is held here. */
+    Vessels.load();
     /* Fills the quality badge in each panel's corner from the data register. */
     Quality.load();
   }

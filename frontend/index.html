@@ -124,6 +124,60 @@
         </div>
         <ul class="legend" id="regionLegend"></ul>
       </section>
+
+      <!-- Every port with arrival data, shared by both pickers below. -->
+      <datalist id="portList"></datalist>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Vessel arrivals by type</h2>
+          <div class="q-slot" data-quality-asset="port_mart.port_calls_by_type_month"></div>
+        </div>
+        <p class="panel-sub" id="callsSub">Loading&hellip;</p>
+        <div class="chart-controls">
+          <input type="search" id="callsPort" list="portList" class="port-picker"
+                 aria-label="Choose a port" placeholder="Find a port&hellip;" autocomplete="off" />
+          <div class="segmented wrap" id="callsType" role="group" aria-label="Vessel type">
+            <button type="button" class="seg" data-value="all" aria-pressed="true">All types</button>
+            <button type="button" class="seg" data-value="container" aria-pressed="false">Container</button>
+            <button type="button" class="seg" data-value="dry_bulk" aria-pressed="false">Dry bulk</button>
+            <button type="button" class="seg" data-value="general_cargo" aria-pressed="false">General cargo</button>
+            <button type="button" class="seg" data-value="roro" aria-pressed="false">RoRo</button>
+            <button type="button" class="seg" data-value="tanker" aria-pressed="false">Tanker</button>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <svg id="callsChart" viewBox="0 0 720 320"></svg>
+          <div class="chart-tip hidden" id="callsTip" role="status" aria-live="polite"></div>
+        </div>
+        <ul class="legend" id="callsLegend"></ul>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Origin and destination ports</h2>
+          <div class="q-slot" data-quality-asset="port_mart.port_connection_summary"></div>
+        </div>
+        <p class="panel-sub" id="linksSub">Loading&hellip;</p>
+        <div class="chart-controls">
+          <input type="search" id="linksPort" list="portList" class="port-picker"
+                 aria-label="Choose a port" placeholder="Find a port&hellip;" autocomplete="off" />
+          <div class="segmented" id="linksDirection" role="group" aria-label="Direction">
+            <button type="button" class="seg" data-value="outbound" aria-pressed="true">Destinations</button>
+            <button type="button" class="seg" data-value="inbound" aria-pressed="false">Origins</button>
+          </div>
+          <div class="segmented" id="linksScope" role="group" aria-label="Leg type">
+            <button type="button" class="seg" data-value="all" aria-pressed="true">All legs</button>
+            <button type="button" class="seg" data-value="international" aria-pressed="false">International</button>
+            <button type="button" class="seg" data-value="domestic" aria-pressed="false">Domestic</button>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <svg id="linksChart" viewBox="0 0 720 340"></svg>
+          <div class="chart-tip hidden" id="linksTip" role="status" aria-live="polite"></div>
+        </div>
+        <ul class="legend" id="linksLegend"></ul>
+      </section>
     </main>
 
     <!-- ===== Data register ===== -->
@@ -161,6 +215,7 @@
   <script src="log.js"></script>
   <script src="auth.js"></script>
   <script src="quality.js"></script>
+  <script src="vessels.js"></script>
   <script src="dashboard.js"></script>
   <script src="register.js"></script>
 </body>
