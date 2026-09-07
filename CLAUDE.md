@@ -118,3 +118,18 @@ The registry is populated by the Mage pipelines themselves — quality checks
 run inside the exporters and upsert their latest result per (asset, check).
 The register UI must never invent or soften a status: red and amber are
 information, not embarrassments to hide.
+
+## Working agreements
+
+- **Data ingestion is Haisam's work, done in Mage.** All ingestion and
+  pipeline building happens in Mage (the separate mage-pipelines repo),
+  built by Haisam himself — it is his learning focus. Claude Code builds
+  backend endpoints, marts, and frontend that *read* what the pipelines
+  have landed. If a task appears to need new source data, stop and say
+  so instead of writing a loader. (ingest/portwatch_load.py predates
+  this rule; its recurring refresh is planned to move into Mage,
+  built by Haisam.)
+
+- **Git is Haisam's work.** Claude Code leaves staging, committing,
+  pushing, and PRs to Haisam unless explicitly told otherwise in the
+  session. Changes stay in the working tree for his review.
