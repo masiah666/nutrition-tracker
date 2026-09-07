@@ -290,6 +290,27 @@ button { cursor: pointer; font-size: 0.95rem; border-radius: var(--radius-sm); b
 .series-dot { stroke: var(--surface); stroke-width: 2; }
 .crosshair { stroke: var(--border); stroke-width: 1; stroke-dasharray: 4 4; }
 
+/* ===== Vessel arrival cards ===== */
+#callsChart, #linksChart { width: 100%; height: auto; display: block; overflow: visible; }
+/* Same as the country chart: SVG text inherits no colour, so every text node in
+   here carries one of the .axis / .bar-* classes above, which supply the fill. */
+#callsChart text, #linksChart text { font-size: 11px; }
+
+/* One bar per origin or destination port. Hovering anywhere on the row lifts
+   the bar and opens its tooltip, so a short bar is no harder to reach than a
+   long one. */
+.leg-row { cursor: default; }
+.leg-bar { transition: opacity 0.12s ease; }
+.leg-row:hover .leg-bar { opacity: 0.82; }
+.leg-row:hover .bar-value { fill: var(--text); }
+
+/* Port names are longer than country names and there are 2,065 of them, so the
+   picker is a typeahead over a datalist rather than a select. */
+.port-picker { flex: 1 1 220px; max-width: 300px; }
+
+/* Six vessel types do not fit one line on a narrow panel. */
+.segmented.wrap { flex-wrap: wrap; }
+
 /* ===== Chart controls ===== */
 .chart-controls {
   display: flex; flex-wrap: wrap; align-items: center; gap: 10px;

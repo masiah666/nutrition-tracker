@@ -251,6 +251,216 @@ def port_country(iso3: str):
         "iso3": iso3.upper(),
         "series": [{"year": r[0], "teu": r[1]} for r in rows],
     }
+# The newest month is whatever PortWatch has published so far, so it covers only
+# part of that month and reads as a collapse it is not. It is returned, named,
+# and left for the caller to drop — the same treatment the World Bank coverage
+# cliff gets on the throughput charts.
+def latest_month(cur) -> str | None:
+    cur.execute("SELECT max(month_start) FROM port_mart.port_calls_by_type_month")
+    row = cur.fetchone()
+    return row[0].isoformat() if row and row[0] else None
+
+
+@app.get("/api/port/calls/ports")
+def port_call_ports():
+    """Ports with vessel-arrival data, ranked by arrivals in the last 12 months."""
+    with get_port_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                WITH bounds AS (
+                    SELECT max(month_start) AS latest
+                    FROM port_mart.port_calls_by_type_month
+                )
+                SELECT c.portid, c.portname, c.country, c.country_iso3, c.continent,
+                       sum(c.calls_total) AS calls_12m
+                FROM port_mart.port_calls_by_type_month c, bounds b
+                WHERE c.month_start > b.latest - INTERVAL '12 months'
+                GROUP BY c.portid, c.portname, c.country, c.country_iso3, c.continent
+                HAVING sum(c.calls_total) > 0
+                ORDER BY calls_12m DESC, c.portname
+                """
+            )
+            rows = cur.fetchall()
+            partial = latest_month(cur)
+
+    return {
+        "partial_month": partial,
+        "ports": [
+            {
+                "portid": r[0], "name": r[1], "country": r[2], "iso3": r[3],
+                "continent": r[4], "calls_12m": r[5],
+            }
+            for r in rows
+        ],
+    }
+
+
+@app.get("/api/port/calls/{portid}")
+def port_calls(portid: str):
+    """Monthly vessel arrivals at one port, split by vessel type."""
+    with get_port_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT portname, country, country_iso3, continent
+                FROM port_raw.portwatch_ports
+                WHERE portid = %s
+                """,
+                (portid,),
+            )
+            port = cur.fetchone()
+            if port is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"No port with id {portid}.",
+                )
+
+            cur.execute(
+                """
+                SELECT month_start, calls_container, calls_dry_bulk,
+                       calls_general_cargo, calls_roro, calls_tanker, calls_total
+                FROM port_mart.port_calls_by_type_month
+                WHERE portid = %s
+                ORDER BY month_start
+                """,
+                (portid,),
+            )
+            rows = cur.fetchall()
+            partial = latest_month(cur)
+
+    return {
+        "port": {
+            "portid": portid, "name": port[0], "country": port[1],
+            "iso3": port[2], "continent": port[3],
+        },
+        "partial_month": partial,
+        "series": [
+            {
+                "month": r[0].isoformat(),
+                "container": r[1], "dry_bulk": r[2], "general_cargo": r[3],
+                "roro": r[4], "tanker": r[5], "total": r[6],
+            }
+            for r in rows
+        ],
+    }
+
+
+# Legs are capped per direction and per domestic/international scope, not
+# overall: a cap on the combined list would leave the domestic filter showing a
+# handful of legs for a port that has fifty, which reads as a fact about the
+# port rather than about the cap.
+CONNECTION_LEGS_PER_SCOPE = 60
+
+# Which column anchors the query and which one is the counterpart, per
+# direction. Fixed pairs, chosen by key — the direction never reaches SQL as a
+# string from the caller.
+CONNECTION_SIDES = {
+    "outbound": ("from_portid", "to"),
+    "inbound": ("to_portid", "from"),
+}
+
+
+def connection_legs(cur, portid: str, direction: str) -> dict:
+    anchor, other = CONNECTION_SIDES[direction]
+
+    cur.execute(
+        f"""
+        WITH legs AS (
+            SELECT s.{other}_portid   AS portid,
+                   s.{other}_portname AS portname,
+                   s.{other}_country  AS country,
+                   s.{other}_iso3     AS iso3,
+                   p.continent        AS continent,
+                   s.average_transit_days,
+                   s.daily_capacity_at_risk,
+                   s.relative_capacity_at_risk,
+                   s.is_domestic,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY s.is_domestic
+                       ORDER BY s.daily_capacity_at_risk DESC NULLS LAST
+                   ) AS scope_rank
+            FROM port_mart.port_connection_summary s
+            LEFT JOIN port_raw.portwatch_ports p ON p.portid = s.{other}_portid
+            WHERE s.{anchor} = %s
+        )
+        SELECT portid, portname, country, iso3, continent, average_transit_days,
+               daily_capacity_at_risk, relative_capacity_at_risk, is_domestic
+        FROM legs
+        WHERE scope_rank <= %s
+        ORDER BY daily_capacity_at_risk DESC NULLS LAST
+        """,
+        (portid, CONNECTION_LEGS_PER_SCOPE),
+    )
+    legs = [
+        {
+            "portid": r[0], "name": r[1], "country": r[2], "iso3": r[3],
+            "continent": r[4], "transit_days": r[5],
+            "daily_capacity": r[6], "relative_capacity": r[7],
+            "is_domestic": r[8],
+        }
+        for r in cur.fetchall()
+    ]
+
+    # The full picture behind the cap, so the card can say how much of the
+    # port's network it is actually drawing.
+    cur.execute(
+        f"""
+        SELECT s.is_domestic, count(*), sum(s.daily_capacity_at_risk)
+        FROM port_mart.port_connection_summary s
+        WHERE s.{anchor} = %s
+        GROUP BY s.is_domestic
+        """,
+        (portid,),
+    )
+    totals = {"domestic": {"legs": 0, "daily_capacity": 0.0},
+              "international": {"legs": 0, "daily_capacity": 0.0}}
+    for is_domestic, count, capacity in cur.fetchall():
+        scope = "domestic" if is_domestic else "international"
+        totals[scope] = {"legs": count, "daily_capacity": float(capacity or 0)}
+
+    return {"legs": legs, "totals": totals}
+
+
+@app.get("/api/port/connections/{portid}")
+def port_connections(portid: str):
+    """One port's origin-destination network, both directions.
+
+    Both directions come back in one response so the card's outbound/inbound
+    toggle does not have to go to the network, and neither does its
+    domestic/international filter.
+    """
+    with get_port_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT portname, country, country_iso3, continent
+                FROM port_raw.portwatch_ports
+                WHERE portid = %s
+                """,
+                (portid,),
+            )
+            port = cur.fetchone()
+            if port is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"No port with id {portid}.",
+                )
+
+            outbound = connection_legs(cur, portid, "outbound")
+            inbound = connection_legs(cur, portid, "inbound")
+
+    return {
+        "port": {
+            "portid": portid, "name": port[0], "country": port[1],
+            "iso3": port[2], "continent": port[3],
+        },
+        "legs_per_scope": CONNECTION_LEGS_PER_SCOPE,
+        "outbound": outbound,
+        "inbound": inbound,
+    }
+
+
 STALE_AFTER_HOURS = 48
 
 
