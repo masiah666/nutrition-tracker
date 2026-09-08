@@ -205,9 +205,8 @@
     $("chartSub").textContent =
       "Top " + Math.min(TOP_N, matches.length) + " of " + matches.length +
       " reporting countries" + (scope.length ? " " + scope.join(" ") : "") +
-      ". Each bar shows that country's most recent reported year — the year sits beside " +
-      "the value, and it can differ from country to country. Select a country for its " +
-      "full series.";
+      ". Each bar shows the country's most recent reported year, named beside the " +
+      "value. Select a country for its full history.";
   }
 
   function selectCountry(country, trigger) {
@@ -629,9 +628,8 @@
         false
       );
       $("compareSub").textContent =
-        "Total TEU per year through " + LAST_SOLID_YEAR + ". On an absolute scale the " +
-        "largest country sets the axis, so smaller ones flatten — switch to Indexed to " +
-        "compare their growth. Growth rates below are 2010–2019.";
+        "Total TEU per year through " + LAST_SOLID_YEAR + ". The largest country sets " +
+        "the scale — switch to Indexed to compare growth. Rates shown below are 2010–2019.";
       return;
     }
 
@@ -658,9 +656,9 @@
 
     drawSeriesChart($("compareChart"), TREND_BOX, series, $("compareTip"), false, formatIndex);
     $("compareSub").textContent =
-      "Each country indexed to 100 in " + base + ", its earliest year in common with the " +
-      "others, through " + LAST_SOLID_YEAR + ". Size drops out, so a small port's growth " +
-      "reads against a large one's. Growth rates below are 2010–2019.";
+      "Each country indexed to 100 in " + base + ", the earliest year they share, through " +
+      LAST_SOLID_YEAR + ". Size drops out, so growth is comparable. Rates shown below " +
+      "are 2010–2019.";
   }
 
   /* ===== Loading ===== */
@@ -731,9 +729,9 @@
 
       const firstYear = Math.min(...series.flatMap((s) => s.points.map((p) => p.year)));
       $("regionSub").textContent =
-        "Every reporting country summed into one total per region, " + firstYear + "–" +
-        LAST_SOLID_YEAR + ". Later years are omitted — country coverage drops sharply " +
-        "after " + LAST_SOLID_YEAR + ", so totals are not comparable.";
+        "Container throughput by region, " + firstYear + "–" + LAST_SOLID_YEAR +
+        ". Later years are excluded, as country coverage is incomplete after " +
+        LAST_SOLID_YEAR + ".";
     } catch (err) {
       Log.error("Could not load regional data:", err);
       $("regionSub").textContent = "Could not load data.";

@@ -1,7 +1,10 @@
 /* Vessel arrivals and port-to-port legs — reads the read-only /api/port
  * endpoints backed by IMF PortWatch.
  *
- * Two cards, one port picker each, both fed by a single fetch of the port list.
+ * Both cards open on the whole world and stay there unless a port is picked:
+ * the dashboard's story is global, and a card that silently opened on whichever
+ * port happened to rank first read as "the data only covers Singapore". The
+ * per-port endpoints are still here, behind the picker, as a drill-down.
  *
  * What the source does NOT carry, and what these cards therefore never imply:
  *   - vessel size or class. PortWatch splits calls by vessel type only.
@@ -17,7 +20,11 @@ window.Vessels = (function () {
 
   /* Keep in step with the viewBox on the matching <svg> in index.html. */
   const CALLS_BOX = { width: 720, height: 320, left: 46, right: 16, top: 12, bottom: 30 };
-  const LINKS_BOX = { width: 720, height: 340, left: 210, right: 104, top: 8, bottom: 24 };
+  const LINKS_BOX = {
+    width: 720, height: 340, left: 210, right: 104, top: 8, bottom: 24,
+    /* Wider gutter for the worldwide view, whose labels name both ends. */
+    routeLeft: 268,
+  };
 
   const Y_TICKS = 4;
   const X_TICK_TARGET = 8;
@@ -53,8 +60,15 @@ window.Vessels = (function () {
     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
   ];
 
+  /* The picker entry, and the sentinel, for the worldwide view. Both cards
+     start here and return here when their box is cleared. */
+  const GLOBAL_LABEL = "All ports \u2014 worldwide";
+  const GLOBAL = null;
+
   /* Every port with arrival data, busiest first. Shared by both pickers. */
   let allPorts = [];
+  /* How many ports the worldwide arrivals series is summed over, from the API. */
+  let globalPortCount = 0;
   /* "Name — Country" as typed into a picker -> portid. */
   const portByLabel = new Map();
   /* The month PortWatch has only partly published; excluded from the series. */
@@ -125,6 +139,16 @@ window.Vessels = (function () {
 
   function portLabel(port) {
     return port.name + " — " + port.country;
+  }
+
+  /* "at Singapore" and "across all 2,065 ports worldwide" are not the same
+     shape of phrase. Built in one place, and naming the port count, because a
+     world total that does not say what it is a total of invites the reader to
+     guess at its coverage. */
+  function scopePhrase(portid, name) {
+    if (portid !== GLOBAL) return "at " + name;
+    const count = globalPortCount ? globalPortCount.toLocaleString() + " " : "";
+    return "across all " + count + "ports worldwide";
   }
 
   async function getJson(path) {
@@ -307,7 +331,7 @@ window.Vessels = (function () {
       $("callsTip").classList.add("hidden");
       $("callsLegend").replaceChildren();
       $("callsSub").textContent =
-        "No arrivals recorded at " + callsData.port.name + ".";
+        "No arrivals recorded " + scopePhrase(callsPortId, callsScopeName()) + ".";
       return;
     }
 
@@ -329,15 +353,33 @@ window.Vessels = (function () {
       (sum, r) => sum + chosen.reduce((s, t) => s + (r[t.key] || 0), 0), 0
     );
     const span = formatMonth(months[0]) + "–" + formatMonth(months[months.length - 1]);
+    const where = scopePhrase(callsPortId, callsScopeName());
     const what = callsType === "all"
-      ? "Arrivals per month at " + callsData.port.name + ", split by vessel type"
-      : chosen[0].label + " arrivals per month at " + callsData.port.name;
+      ? "Arrivals per month " + where + ", split by vessel type"
+      : chosen[0].label + " arrivals per month " + where;
+
+    /* A world line can move because more ships sailed or because more ports
+       started reporting, and those are not the same story. Coverage is flat
+       today, so the caveat only appears if that stops being true. */
+    const counts = rows.map((r) => r.ports_reporting).filter((n) => n);
+    const coverage = counts.length && Math.min(...counts) !== Math.max(...counts)
+      ? " Reporting coverage varies across this period, so part of the movement " +
+        "reflects coverage rather than traffic."
+      : "";
+
+    const hint = callsPortId === GLOBAL
+      ? " Select a port for its own arrivals."
+      : " Clear the box to return to the worldwide view.";
 
     $("callsSub").textContent =
-      what + ", " + span + ". " + formatCount(total) + " calls in total. " +
-      "The current month is left off — PortWatch publishes weekly, so it is " +
-      "always still filling up. Vessel size is not in the source, so arrivals " +
-      "count ships, not capacity.";
+      what + ", " + span + ". " + formatCount(total) + " arrivals in total." +
+      coverage + hint;
+  }
+
+  /* The worldwide response has no single port behind it, so it carries a
+     `scope` where the per-port one carries a `port`. */
+  function callsScopeName() {
+    return callsData && callsData.port ? callsData.port.name : "";
   }
 
   async function loadCalls(portid) {
@@ -345,30 +387,71 @@ window.Vessels = (function () {
     callsPortId = portid;
     $("callsSub").textContent = "Loading…";
 
+    const path = portid === GLOBAL
+      ? "/api/port/calls/global"
+      : "/api/port/calls/" + encodeURIComponent(portid);
+
     try {
-      const data = await getJson("/api/port/calls/" + encodeURIComponent(portid));
+      const data = await getJson(path);
       if (token !== callsRequest) return;
       callsData = data;
       if (data.partial_month) partialMonth = data.partial_month;
+      if (data.scope && data.scope.ports) globalPortCount = data.scope.ports;
       renderCalls();
     } catch (err) {
       if (token !== callsRequest) return;
-      Log.error("Could not load vessel arrivals for " + portid + ":", err);
+      Log.error("Could not load vessel arrivals (" + (portid || "worldwide") + "):", err);
       $("callsChart").replaceChildren();
       $("callsLegend").replaceChildren();
-      $("callsSub").textContent = "Could not load arrivals for this port.";
+      $("callsSub").textContent = portid === GLOBAL
+        ? "Could not load worldwide arrivals."
+        : "Could not load arrivals for this port.";
     }
   }
 
   /* ===== Card 2: origin and destination ports ===== */
 
-  function visibleLegs() {
+  /* One row shape for both scopes. A worldwide row is a route with two ends;
+     a per-port row is the single counterpart port, the anchor being the port
+     already named in the subtitle. The chart draws a labelled bar either way,
+     so the difference is flattened here instead of inside the drawing. */
+  function normalizeLegs() {
+    if (linksPortId === GLOBAL) {
+      return (linksData.routes || []).map((route) => ({
+        name: clip(route.from.name, 16) + " → " + clip(route.to.name, 16),
+        head: route.from.name + " → " + route.to.name,
+        country: route.from.country + " → " + route.to.country,
+        ends: [
+          ["From", route.from.name + ", " + route.from.country],
+          ["To", route.to.name + ", " + route.to.country],
+        ],
+        transit_days: route.transit_days,
+        daily_capacity: route.daily_capacity,
+        relative_capacity: route.relative_capacity,
+        is_domestic: route.is_domestic,
+        continent: route.to.continent,
+      }));
+    }
+
     const side = linksData[linksDirection];
-    return side.legs.filter((leg) => {
+    return (side.legs || []).map((leg) => Object.assign({}, leg, {
+      head: leg.name + ", " + leg.country,
+      ends: [],
+    }));
+  }
+
+  function visibleLegs() {
+    return normalizeLegs().filter((leg) => {
       if (linksScope === "domestic") return leg.is_domestic;
       if (linksScope === "international") return !leg.is_domestic;
       return true;
     });
+  }
+
+  /* The cap the API applied, and what it is a cap on: per direction for one
+     port, over every pair for the world. */
+  function linksTotals() {
+    return linksPortId === GLOBAL ? linksData.totals : linksData[linksDirection].totals;
   }
 
   function drawLinksChart(legs) {
@@ -381,7 +464,10 @@ window.Vessels = (function () {
     if (!data.length) return;
 
     const max = Math.max(...data.map((d) => d.daily_capacity || 0), 1);
-    const plotW = LINKS_BOX.width - LINKS_BOX.left - LINKS_BOX.right;
+    /* A route label carries two port names and an arrow, so it needs more
+       gutter than a single port name does. The bars give up the difference. */
+    const left = linksPortId === GLOBAL ? LINKS_BOX.routeLeft : LINKS_BOX.left;
+    const plotW = LINKS_BOX.width - left - LINKS_BOX.right;
     const rowHeight = (LINKS_BOX.height - LINKS_BOX.top - LINKS_BOX.bottom) / data.length;
     /* Bars are thin, with a clear band of surface between them — two adjacent
        fills must never read as one block. */
@@ -400,23 +486,23 @@ window.Vessels = (function () {
       }));
 
       row.appendChild(el("text", {
-        x: LINKS_BOX.left - 10, y: barY + barHeight / 2 + 4,
+        x: left - 10, y: barY + barHeight / 2 + 4,
         "text-anchor": "end", class: "bar-label",
-      }, clip(leg.name, 30)));
+      }, clip(leg.name, 36)));
 
       row.appendChild(el("rect", {
-        x: LINKS_BOX.left, y: barY, width: width, height: barHeight,
+        x: left, y: barY, width: width, height: barHeight,
         rx: 4, fill: color, class: "leg-bar",
       }));
 
       const value = el("text", {
-        x: LINKS_BOX.left + width + 8, y: barY + barHeight / 2 + 4, class: "bar-value",
+        x: left + width + 8, y: barY + barHeight / 2 + 4, class: "bar-value",
       }, formatCapacity(leg.daily_capacity));
       value.appendChild(el("tspan", { dx: "5", class: "bar-year" }, "DWT/day"));
       row.appendChild(value);
 
       row.addEventListener("pointerenter", () =>
-        showLegTip(svg, tip, leg, LINKS_BOX.left + width, barY + barHeight / 2));
+        showLegTip(svg, tip, leg, left + width, barY + barHeight / 2));
       row.addEventListener("pointerleave", () => tip.classList.add("hidden"));
 
       svg.appendChild(row);
@@ -425,14 +511,17 @@ window.Vessels = (function () {
 
   function showLegTip(svg, tip, leg, userX, userY) {
     const frag = document.createDocumentFragment();
-    frag.appendChild(h("div", { class: "chart-tip-head" }, leg.name + ", " + leg.country));
+    frag.appendChild(h("div", { class: "chart-tip-head" }, leg.head));
 
-    const rows = [
+    /* The bar label is clipped to fit the gutter; the tooltip is where both
+       ends get their full name and country. */
+    const rows = leg.ends.slice();
+    rows.push(
       ["Capacity", formatCapacity(leg.daily_capacity) + " DWT/day"],
       ["Transit", leg.transit_days === null || leg.transit_days === undefined
         ? "—" : leg.transit_days.toFixed(1) + " days"],
-      ["Leg", leg.is_domestic ? "Domestic" : "International"],
-    ];
+      ["Leg", leg.is_domestic ? "Domestic" : "International"]
+    );
     if (leg.continent) rows.push(["Region", leg.continent]);
 
     rows.forEach(([label, text]) => {
@@ -482,18 +571,35 @@ window.Vessels = (function () {
   function renderLinks() {
     if (!linksData) return;
 
+    const global = linksPortId === GLOBAL;
+
+    /* A route already has both ends on it, so outbound/inbound has nothing to
+       say about the worldwide view — the control is put away rather than left
+       sitting there doing nothing. */
+    $("linksDirection").classList.toggle("hidden", global);
+
+    /* The heading follows the scope: the worldwide view ranks routes, the
+       drill-down describes one port's own origins and destinations. */
+    $("linksTitle").textContent = global
+      ? "Busiest Trade Routes"
+      : "Port Origins and Destinations";
+
     const legs = visibleLegs();
-    const side = linksData[linksDirection];
-    const noun = linksDirection === "outbound" ? "destination" : "origin";
-    const verb = linksDirection === "outbound" ? "sailing from" : "arriving at";
+    const noun = global
+      ? "route"
+      : linksDirection === "outbound" ? "destination port" : "origin port";
+    const verb = global
+      ? "sailing each one"
+      : linksDirection === "outbound" ? "sailing from each one" : "arriving at each one";
 
     if (!legs.length) {
       $("linksChart").replaceChildren();
       $("linksTip").classList.add("hidden");
       $("linksLegend").replaceChildren();
-      $("linksSub").textContent =
-        "No " + (linksScope === "all" ? "" : linksScope + " ") + noun +
-        " ports recorded for " + linksData.port.name + ".";
+      $("linksSub").textContent = global
+        ? "No " + (linksScope === "all" ? "" : linksScope + " ") + "routes recorded."
+        : "No " + (linksScope === "all" ? "" : linksScope + " ") + noun +
+          "s recorded for " + linksData.port.name + ".";
       return;
     }
 
@@ -501,8 +607,9 @@ window.Vessels = (function () {
     drawLinksLegend(legs);
 
     /* The API caps each scope separately, so say what the cap is against — a
-       "top 12 of 60" that is really a top 12 of 812 would misdescribe the port. */
-    const totals = side.totals;
+       "top 12 of 60" that is really a top 12 of 812 would misdescribe the
+       port, and a top 12 of 226,904 is the whole point of the world view. */
+    const totals = linksTotals();
     const available = linksScope === "domestic" ? totals.domestic.legs
       : linksScope === "international" ? totals.international.legs
       : totals.domestic.legs + totals.international.legs;
@@ -510,13 +617,21 @@ window.Vessels = (function () {
     const scopeWord = linksScope === "all" ? "" :
       linksScope === "domestic" ? "domestic " : "international ";
 
+    const where = global
+      ? " worldwide"
+      : " for " + linksData.port.name;
+    const inside = global
+      ? "Domestic routes stay within one country; international routes cross a border."
+      : "Domestic legs stay within " + linksData.port.country +
+        "; international legs cross a border.";
+    const hint = global
+      ? " Select a port for its own network."
+      : " Clear the box to return to the worldwide view.";
+
     $("linksSub").textContent =
-      "Top " + Math.min(TOP_LEGS, legs.length) + " of " + available + " " +
-      scopeWord + noun + " ports for " + linksData.port.name + ", by the cargo " +
-      "capacity observed " + verb + " each one. Domestic legs stay inside " +
-      linksData.port.country + "; international legs cross a border. " +
-      "PortWatch publishes no transhipment split, so this is not one — a leg " +
-      "here is an observed sailing, whatever the cargo was doing.";
+      "Top " + Math.min(TOP_LEGS, legs.length) + " of " + available.toLocaleString() +
+      " " + scopeWord + noun + "s" + where + ", ranked by the cargo capacity observed " +
+      verb + ". " + inside + hint;
   }
 
   async function loadLinks(portid) {
@@ -524,17 +639,23 @@ window.Vessels = (function () {
     linksPortId = portid;
     $("linksSub").textContent = "Loading…";
 
+    const path = portid === GLOBAL
+      ? "/api/port/connections/global"
+      : "/api/port/connections/" + encodeURIComponent(portid);
+
     try {
-      const data = await getJson("/api/port/connections/" + encodeURIComponent(portid));
+      const data = await getJson(path);
       if (token !== linksRequest) return;
       linksData = data;
       renderLinks();
     } catch (err) {
       if (token !== linksRequest) return;
-      Log.error("Could not load port connections for " + portid + ":", err);
+      Log.error("Could not load port connections (" + (portid || "worldwide") + "):", err);
       $("linksChart").replaceChildren();
       $("linksLegend").replaceChildren();
-      $("linksSub").textContent = "Could not load this port's network.";
+      $("linksSub").textContent = portid === GLOBAL
+        ? "Could not load the worldwide route list."
+        : "Could not load this port's network.";
     }
   }
 
@@ -543,6 +664,8 @@ window.Vessels = (function () {
   function fillPortList() {
     const list = $("portList");
     list.replaceChildren();
+    /* First entry is the way back out of a drill-down. */
+    list.appendChild(new Option(GLOBAL_LABEL, GLOBAL_LABEL));
     allPorts.forEach((port) => {
       const label = portLabel(port);
       portByLabel.set(label, port.portid);
@@ -556,7 +679,17 @@ window.Vessels = (function () {
   function bindPicker(inputId, current, onPick) {
     const input = $(inputId);
     input.addEventListener("change", () => {
-      const portid = portByLabel.get(input.value.trim());
+      const text = input.value.trim();
+
+      /* An empty box, or the worldwide entry, asks for the world. That is the
+         card's home view, not a filter left unset, so it loads rather than
+         leaving the last port on screen with an empty picker above it. */
+      if (!text || text === GLOBAL_LABEL) {
+        if (current() !== GLOBAL) onPick(GLOBAL);
+        return;
+      }
+
+      const portid = portByLabel.get(text);
       if (!portid || portid === current()) return;
       onPick(portid);
     });
@@ -592,32 +725,29 @@ window.Vessels = (function () {
       renderLinks();
     });
 
+    /* Both cards open on the world, the same way the throughput charts open on
+       every country. The picker is a drill-down, so it is not waited on: the
+       world view is fetched first and the port list fills in behind it. */
+    loadCalls(GLOBAL);
+    loadLinks(GLOBAL);
+
     try {
       const data = await getJson("/api/port/calls/ports");
       allPorts = data.ports || [];
-      partialMonth = data.partial_month;
+      if (data.partial_month) partialMonth = data.partial_month;
     } catch (err) {
+      /* Only the drill-down is lost here — both cards are already drawing. */
       Log.error("Could not load the port list:", err);
-      $("callsSub").textContent = "Could not load the port list.";
-      $("linksSub").textContent = "Could not load the port list.";
-      return;
+      allPorts = [];
     }
 
     if (!allPorts.length) {
-      $("callsSub").textContent = "No vessel arrival data available.";
-      $("linksSub").textContent = "No vessel arrival data available.";
+      $("callsPort").disabled = true;
+      $("linksPort").disabled = true;
       return;
     }
 
     fillPortList();
-
-    /* Opens on the busiest port, the same way the leaderboard opens on the
-       largest countries — something to read before anything is chosen. */
-    const first = allPorts[0];
-    $("callsPort").value = portLabel(first);
-    $("linksPort").value = portLabel(first);
-    loadCalls(first.portid);
-    loadLinks(first.portid);
   }
 
   return { load: load };

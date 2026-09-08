@@ -296,6 +296,55 @@ def port_call_ports():
     }
 
 
+@app.get("/api/port/calls/global")
+def port_calls_global():
+    """Monthly vessel arrivals across every port, split by vessel type.
+
+    The card's default view. Declared above the /{portid} route so "global"
+    is matched as a route and never as a port id.
+
+    `ports_reporting` rides along per month because a world total moves for two
+    different reasons — more ships, or more ports carrying data — and the card
+    has no way to tell them apart without it.
+    """
+    with get_port_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT month_start,
+                       sum(calls_container), sum(calls_dry_bulk),
+                       sum(calls_general_cargo), sum(calls_roro),
+                       sum(calls_tanker), sum(calls_total),
+                       count(DISTINCT portid)
+                FROM port_mart.port_calls_by_type_month
+                GROUP BY month_start
+                ORDER BY month_start
+                """
+            )
+            rows = cur.fetchall()
+            partial = latest_month(cur)
+
+            cur.execute(
+                "SELECT count(DISTINCT portid) FROM port_mart.port_calls_by_type_month"
+            )
+            total_ports = cur.fetchone()[0]
+
+    return {
+        "scope": {"portid": None, "name": "All ports", "country": "Worldwide",
+                  "ports": total_ports},
+        "partial_month": partial,
+        "series": [
+            {
+                "month": r[0].isoformat(),
+                "container": r[1], "dry_bulk": r[2], "general_cargo": r[3],
+                "roro": r[4], "tanker": r[5], "total": r[6],
+                "ports_reporting": r[7],
+            }
+            for r in rows
+        ],
+    }
+
+
 @app.get("/api/port/calls/{portid}")
 def port_calls(portid: str):
     """Monthly vessel arrivals at one port, split by vessel type."""
@@ -420,6 +469,81 @@ def connection_legs(cur, portid: str, direction: str) -> dict:
         totals[scope] = {"legs": count, "daily_capacity": float(capacity or 0)}
 
     return {"legs": legs, "totals": totals}
+
+
+# The busiest routes worldwide are capped the same way one port's legs are, and
+# for the same reason: per scope, so the domestic filter is not silently
+# showing the leftovers of an international-dominated overall cap.
+GLOBAL_ROUTES_PER_SCOPE = 60
+
+
+@app.get("/api/port/connections/global")
+def port_connections_global():
+    """The busiest directed port pairs worldwide, ranked by capacity at risk.
+
+    The card's default view. Declared above the /{portid} route so "global" is
+    matched as a route and never as a port id. Both scopes come back in one
+    response so the domestic/international toggle never refetches.
+    """
+    with get_port_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                WITH ranked AS (
+                    SELECT s.from_portid, s.from_portname, s.from_country, s.from_iso3,
+                           s.to_portid, s.to_portname, s.to_country, s.to_iso3,
+                           s.to_continent, s.average_transit_days,
+                           s.daily_capacity_at_risk, s.relative_capacity_at_risk,
+                           s.is_domestic,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY s.is_domestic
+                               ORDER BY s.daily_capacity_at_risk DESC NULLS LAST
+                           ) AS scope_rank
+                    FROM port_mart.port_connection_summary s
+                )
+                SELECT from_portid, from_portname, from_country, from_iso3,
+                       to_portid, to_portname, to_country, to_iso3, to_continent,
+                       average_transit_days, daily_capacity_at_risk,
+                       relative_capacity_at_risk, is_domestic
+                FROM ranked
+                WHERE scope_rank <= %s
+                ORDER BY daily_capacity_at_risk DESC NULLS LAST
+                """,
+                (GLOBAL_ROUTES_PER_SCOPE,),
+            )
+            routes = [
+                {
+                    "from": {"portid": r[0], "name": r[1], "country": r[2], "iso3": r[3]},
+                    "to": {"portid": r[4], "name": r[5], "country": r[6], "iso3": r[7],
+                           "continent": r[8]},
+                    "transit_days": r[9],
+                    "daily_capacity": r[10],
+                    "relative_capacity": r[11],
+                    "is_domestic": r[12],
+                }
+                for r in cur.fetchall()
+            ]
+
+            # What the cap is a slice of, so the card can say so on the panel.
+            cur.execute(
+                """
+                SELECT is_domestic, count(*), sum(daily_capacity_at_risk)
+                FROM port_mart.port_connection_summary
+                GROUP BY is_domestic
+                """
+            )
+            totals = {"domestic": {"legs": 0, "daily_capacity": 0.0},
+                      "international": {"legs": 0, "daily_capacity": 0.0}}
+            for is_domestic, count, capacity in cur.fetchall():
+                scope = "domestic" if is_domestic else "international"
+                totals[scope] = {"legs": count, "daily_capacity": float(capacity or 0)}
+
+    return {
+        "scope": {"portid": None, "name": "All ports", "country": "Worldwide"},
+        "routes_per_scope": GLOBAL_ROUTES_PER_SCOPE,
+        "routes": routes,
+        "totals": totals,
+    }
 
 
 @app.get("/api/port/connections/{portid}")

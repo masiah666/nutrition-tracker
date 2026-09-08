@@ -44,23 +44,38 @@ and must be read-only — `PORT_DB_USER` may later point at a SELECT-only role.
 - `GET /api/port/regions` — regional totals by year
 - `GET /api/port/country/{iso3}` — full time series for one country
 - `GET /api/port/calls/ports` — ports with arrival data, busiest 12 months first
+- `GET /api/port/calls/global` — monthly arrivals summed over every port, by
+  vessel type; carries `ports_reporting` per month so the card can tell traffic
+  apart from coverage
 - `GET /api/port/calls/{portid}` — monthly arrivals at one port, by vessel type
+- `GET /api/port/connections/global` — the busiest directed port pairs
+  worldwide, capped per domestic/international scope
 - `GET /api/port/connections/{portid}` — one port's origin and destination legs,
   both directions in one response so the card's toggles never refetch
 
+The two `global` routes are declared above their `{portid}` siblings in
+`main.py`, so "global" is matched as a route and never as a port id.
+
 ## Frontend
 
-- `index.html` — auth screen (lines 1-47) then `<div id="app">` with the dashboard
+- `index.html` — auth screen, then `<div id="app">`: topbar, the section rail,
+  and the two views. Every dashboard panel carries a `data-section`.
 - `auth.js` — login/signup. **Do not modify.** It self-runs on load and requires
   the auth markup (`loginForm`, `signupEmail`, `.auth-tab`, etc.) to exist.
 - `dashboard.js` — fetches the port endpoints, renders SVG charts
-- `register.js` — the data register view, and the topbar switch between it and
-  the dashboard. The switch lives here because `Auth.onLogin` takes a single
-  callback and `dashboard.js` holds it; the register loads on first view.
+- `nav.js` — the left section rail. A section is a group of cards, not a page:
+  it shows the panels whose `data-section` matches and swaps in the register
+  view for the `register` section, then fills the one `.view-head` from the
+  chosen rail item and fires `nav:section`. Sections are named once, in the
+  rail markup in `index.html`. Loads last, so every listener is already up.
+- `register.js` — the data register view. Loads itself the first time
+  `nav:section` names `register`, not on login.
 - `vessels.js` — the two vessel-arrival cards: arrivals by type over time, and
-  the origin/destination legs for one port. Owns its own state and fetches;
-  `dashboard.js` calls `Vessels.load()` for the same reason it holds the
-  register switch. Must load before `dashboard.js`.
+  the busiest routes. Both open worldwide, matching the three throughput cards
+  above them; the port picker is an optional drill-down and clearing it returns
+  to the world. Owns its own state and fetches;
+  `dashboard.js` calls `Vessels.load()` because `Auth.onLogin` takes a single
+  callback and `dashboard.js` holds it. Must load before `dashboard.js`.
 - `quality.js` — the quality badge in each dashboard panel's corner, plus the
   status vocabulary (colours, glyphs, the 48-hour stale rule, time formatting)
   and the single `/api/registry/assets` fetch that `register.js` shares. Load
@@ -72,6 +87,14 @@ and must be read-only — `PORT_DB_USER` may later point at a SELECT-only role.
 
 ## Conventions
 
+- Panel text is written for the person reading the dashboard, not for us: one
+  or two sentences saying what the card shows and how to drill into it. Source
+  mechanics — publication schedules, what a vendor does not carry, why a
+  caveat exists — belong in code comments and in this file, not on the panel.
+  Caveats that change how a number should be read (incomplete coverage, an
+  excluded year) do belong there, stated briefly.
+- Card titles and rail labels are Title Case; controls and legends stay in
+  sentence case.
 - Any value from a URL or user input goes into SQL as a `%s` parameter, never
   an f-string.
 - Charts are hand-written SVG. No charting libraries.
@@ -91,8 +114,11 @@ and must be read-only — `PORT_DB_USER` may later point at a SELECT-only role.
   at port-call grain. The arrivals card counts ships, not capacity — do not
   add a size filter without a source that actually carries it.
 - No free source publishes a transhipment split per port pair either. The
-  origin/destination card offers domestic vs international instead, and says
-  so on the panel. `is_domestic` is not a transhipment flag; do not relabel it.
+  origin/destination card offers domestic vs international instead.
+  `is_domestic` is not a transhipment flag; do not relabel it.
+- Both vessel cards are global by default. They used to open on the busiest
+  port, which read as "the data only covers Singapore" against three global
+  TEU cards. Do not reintroduce a per-port default.
 - PortWatch republishes weekly, so the newest month in `port_calls_monthly` is
   always partial. The API names it in `partial_month` and the card drops it —
   drawn, it looks like a collapse that has not happened.

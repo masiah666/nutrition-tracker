@@ -62,10 +62,6 @@
         </svg></span>
         <span class="brand-name">Port Traffic</span>
       </div>
-      <nav class="segmented viewnav" id="viewNav" aria-label="View">
-        <button type="button" class="seg" data-view="dashboard" aria-pressed="true">Dashboard</button>
-        <button type="button" class="seg" data-view="register" aria-pressed="false">Register</button>
-      </nav>
       <div class="topbar-right">
         <span class="avatar" id="userAvatar">U</span>
         <span id="userName">user</span>
@@ -73,126 +69,179 @@
       </div>
     </header>
 
-    <main id="dashboardView">
-      <section class="panel">
-        <div class="panel-head">
-          <h2>Container throughput by country</h2>
-          <div class="q-slot" data-quality-asset="port_mart.country_traffic_summary"></div>
-        </div>
-        <p class="panel-sub" id="chartSub">Loading&hellip;</p>
-        <div class="chart-controls">
-          <select id="regionFilter" aria-label="Filter by region">
-            <option value="">All regions</option>
-          </select>
-          <input type="search" id="countrySearch" aria-label="Find a country"
-                 placeholder="Find a country&hellip;" autocomplete="off" />
-        </div>
-        <svg id="topCountriesChart" viewBox="0 0 600 320"></svg>
-      </section>
+    <div class="shell">
+      <!-- Section rail. Each item names a group of cards; the panels below
+           carry the matching data-section. -->
+      <aside class="sidenav">
+        <nav id="sideNav" aria-label="Sections">
+          <p class="nav-group">Global Port Data</p>
+          <ul class="nav-list">
+            <li>
+              <button type="button" class="nav-item" data-section="throughput"
+                      aria-current="page"
+                      data-lede="Container throughput in TEU, by country and by region.">
+                <span class="nav-name">Container Throughput</span>
+                <span class="nav-note">TEU by country and region</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="nav-item" data-section="arrivals"
+                      data-lede="Vessel arrivals per month, split by vessel type.">
+                <span class="nav-name">Vessel Arrivals</span>
+                <span class="nav-note">Monthly calls by vessel type</span>
+              </button>
+            </li>
+            <li>
+              <button type="button" class="nav-item" data-section="routes"
+                      data-lede="Port-to-port movements, ranked by the capacity observed on each route.">
+                <span class="nav-name">Trade Routes</span>
+                <span class="nav-note">Origin and destination ports</span>
+              </button>
+            </li>
+          </ul>
+          <p class="nav-group">Data Governance</p>
+          <ul class="nav-list">
+            <li>
+              <button type="button" class="nav-item" data-section="register"
+                      data-lede="Every dataset behind this dashboard, with its fields, lineage and quality checks.">
+                <span class="nav-name">Data Register</span>
+                <span class="nav-note">Sources, fields and checks</span>
+              </button>
+            </li>
+          </ul>
+        </nav>
+      </aside>
 
-      <section class="panel">
-        <div class="panel-head">
-          <h2>Compare countries</h2>
-          <div class="q-slot" data-quality-asset="port_mart.country_traffic_summary"></div>
-        </div>
-        <p class="panel-sub" id="compareSub">Loading&hellip;</p>
-        <div class="chart-controls">
-          <select id="compareAdd" aria-label="Add a country to compare">
-            <option value="">Add a country&hellip;</option>
-          </select>
-          <div class="segmented" id="compareMeasure" role="group" aria-label="Measure">
-            <button type="button" class="seg" data-measure="indexed" aria-pressed="true">Indexed</button>
-            <button type="button" class="seg" data-measure="absolute" aria-pressed="false">Absolute TEU</button>
-          </div>
-        </div>
-        <ul class="chips" id="compareChips"></ul>
-        <div class="chart-wrap">
-          <svg id="compareChart" viewBox="0 0 720 340"></svg>
-          <div class="chart-tip hidden" id="compareTip" role="status" aria-live="polite"></div>
-        </div>
-      </section>
+      <div class="views">
+        <header class="view-head">
+          <h1 id="viewTitle">Container Throughput</h1>
+          <p id="viewLede">Container throughput in TEU, by country and by region.</p>
+        </header>
 
-      <section class="panel">
-        <div class="panel-head">
-          <h2>Regional throughput over time</h2>
-          <div class="q-slot" data-quality-asset="port_mart.traffic_by_region_year"></div>
-        </div>
-        <p class="panel-sub" id="regionSub">Loading&hellip;</p>
-        <div class="chart-wrap">
-          <svg id="regionsChart" viewBox="0 0 720 340"></svg>
-          <div class="chart-tip hidden" id="regionTip" role="status" aria-live="polite"></div>
-        </div>
-        <ul class="legend" id="regionLegend"></ul>
-      </section>
+        <main id="dashboardView">
+          <section class="panel" data-section="throughput">
+            <div class="panel-head">
+              <h2>Container Throughput by Country</h2>
+              <div class="q-slot" data-quality-asset="port_mart.country_traffic_summary"></div>
+            </div>
+            <p class="panel-sub" id="chartSub">Loading&hellip;</p>
+            <div class="chart-controls">
+              <select id="regionFilter" aria-label="Filter by region">
+                <option value="">All regions</option>
+              </select>
+              <input type="search" id="countrySearch" aria-label="Find a country"
+                     placeholder="Find a country&hellip;" autocomplete="off" />
+            </div>
+            <svg id="topCountriesChart" viewBox="0 0 600 320"></svg>
+          </section>
 
-      <!-- Every port with arrival data, shared by both pickers below. -->
-      <datalist id="portList"></datalist>
+          <section class="panel" data-section="throughput">
+            <div class="panel-head">
+              <h2>Country Comparison</h2>
+              <div class="q-slot" data-quality-asset="port_mart.country_traffic_summary"></div>
+            </div>
+            <p class="panel-sub" id="compareSub">Loading&hellip;</p>
+            <div class="chart-controls">
+              <select id="compareAdd" aria-label="Add a country to compare">
+                <option value="">Add a country&hellip;</option>
+              </select>
+              <div class="segmented" id="compareMeasure" role="group" aria-label="Measure">
+                <button type="button" class="seg" data-measure="indexed" aria-pressed="true">Indexed</button>
+                <button type="button" class="seg" data-measure="absolute" aria-pressed="false">Absolute TEU</button>
+              </div>
+            </div>
+            <ul class="chips" id="compareChips"></ul>
+            <div class="chart-wrap">
+              <svg id="compareChart" viewBox="0 0 720 340"></svg>
+              <div class="chart-tip hidden" id="compareTip" role="status" aria-live="polite"></div>
+            </div>
+          </section>
 
-      <section class="panel">
-        <div class="panel-head">
-          <h2>Vessel arrivals by type</h2>
-          <div class="q-slot" data-quality-asset="port_mart.port_calls_by_type_month"></div>
-        </div>
-        <p class="panel-sub" id="callsSub">Loading&hellip;</p>
-        <div class="chart-controls">
-          <input type="search" id="callsPort" list="portList" class="port-picker"
-                 aria-label="Choose a port" placeholder="Find a port&hellip;" autocomplete="off" />
-          <div class="segmented wrap" id="callsType" role="group" aria-label="Vessel type">
-            <button type="button" class="seg" data-value="all" aria-pressed="true">All types</button>
-            <button type="button" class="seg" data-value="container" aria-pressed="false">Container</button>
-            <button type="button" class="seg" data-value="dry_bulk" aria-pressed="false">Dry bulk</button>
-            <button type="button" class="seg" data-value="general_cargo" aria-pressed="false">General cargo</button>
-            <button type="button" class="seg" data-value="roro" aria-pressed="false">RoRo</button>
-            <button type="button" class="seg" data-value="tanker" aria-pressed="false">Tanker</button>
-          </div>
-        </div>
-        <div class="chart-wrap">
-          <svg id="callsChart" viewBox="0 0 720 320"></svg>
-          <div class="chart-tip hidden" id="callsTip" role="status" aria-live="polite"></div>
-        </div>
-        <ul class="legend" id="callsLegend"></ul>
-      </section>
+          <section class="panel" data-section="throughput">
+            <div class="panel-head">
+              <h2>Regional Throughput Trends</h2>
+              <div class="q-slot" data-quality-asset="port_mart.traffic_by_region_year"></div>
+            </div>
+            <p class="panel-sub" id="regionSub">Loading&hellip;</p>
+            <div class="chart-wrap">
+              <svg id="regionsChart" viewBox="0 0 720 340"></svg>
+              <div class="chart-tip hidden" id="regionTip" role="status" aria-live="polite"></div>
+            </div>
+            <ul class="legend" id="regionLegend"></ul>
+          </section>
 
-      <section class="panel">
-        <div class="panel-head">
-          <h2>Origin and destination ports</h2>
-          <div class="q-slot" data-quality-asset="port_mart.port_connection_summary"></div>
-        </div>
-        <p class="panel-sub" id="linksSub">Loading&hellip;</p>
-        <div class="chart-controls">
-          <input type="search" id="linksPort" list="portList" class="port-picker"
-                 aria-label="Choose a port" placeholder="Find a port&hellip;" autocomplete="off" />
-          <div class="segmented" id="linksDirection" role="group" aria-label="Direction">
-            <button type="button" class="seg" data-value="outbound" aria-pressed="true">Destinations</button>
-            <button type="button" class="seg" data-value="inbound" aria-pressed="false">Origins</button>
-          </div>
-          <div class="segmented" id="linksScope" role="group" aria-label="Leg type">
-            <button type="button" class="seg" data-value="all" aria-pressed="true">All legs</button>
-            <button type="button" class="seg" data-value="international" aria-pressed="false">International</button>
-            <button type="button" class="seg" data-value="domestic" aria-pressed="false">Domestic</button>
-          </div>
-        </div>
-        <div class="chart-wrap">
-          <svg id="linksChart" viewBox="0 0 720 340"></svg>
-          <div class="chart-tip hidden" id="linksTip" role="status" aria-live="polite"></div>
-        </div>
-        <ul class="legend" id="linksLegend"></ul>
-      </section>
-    </main>
+          <!-- Every port with arrival data, plus the worldwide entry, shared by
+               both drill-down pickers below. -->
+          <datalist id="portList"></datalist>
 
-    <!-- ===== Data register ===== -->
-    <main id="registerView" class="hidden">
-      <section class="panel">
-        <h2>Data register</h2>
-        <p class="panel-sub" id="registerSub">Loading&hellip;</p>
-        <div class="register-layout">
-          <div class="asset-list" id="assetList"></div>
-          <div class="asset-detail" id="assetDetail" aria-live="polite">
-            <p class="empty-note">Loading&hellip;</p>
-          </div>
-        </div>
-      </section>
-    </main>
+          <section class="panel" data-section="arrivals">
+            <div class="panel-head">
+              <h2>Vessel Arrivals by Type</h2>
+              <div class="q-slot" data-quality-asset="port_mart.port_calls_by_type_month"></div>
+            </div>
+            <p class="panel-sub" id="callsSub">Loading&hellip;</p>
+            <div class="chart-controls">
+              <input type="search" id="callsPort" list="portList" class="port-picker"
+                     aria-label="Narrow to one port" placeholder="All ports &mdash; worldwide"
+                     autocomplete="off" />
+              <div class="segmented wrap" id="callsType" role="group" aria-label="Vessel type">
+                <button type="button" class="seg" data-value="all" aria-pressed="true">All types</button>
+                <button type="button" class="seg" data-value="container" aria-pressed="false">Container</button>
+                <button type="button" class="seg" data-value="dry_bulk" aria-pressed="false">Dry bulk</button>
+                <button type="button" class="seg" data-value="general_cargo" aria-pressed="false">General cargo</button>
+                <button type="button" class="seg" data-value="roro" aria-pressed="false">RoRo</button>
+                <button type="button" class="seg" data-value="tanker" aria-pressed="false">Tanker</button>
+              </div>
+            </div>
+            <div class="chart-wrap">
+              <svg id="callsChart" viewBox="0 0 720 320"></svg>
+              <div class="chart-tip hidden" id="callsTip" role="status" aria-live="polite"></div>
+            </div>
+            <ul class="legend" id="callsLegend"></ul>
+          </section>
+
+          <section class="panel" data-section="routes">
+            <div class="panel-head">
+              <h2 id="linksTitle">Busiest Trade Routes</h2>
+              <div class="q-slot" data-quality-asset="port_mart.port_connection_summary"></div>
+            </div>
+            <p class="panel-sub" id="linksSub">Loading&hellip;</p>
+            <div class="chart-controls">
+              <input type="search" id="linksPort" list="portList" class="port-picker"
+                     aria-label="Narrow to one port" placeholder="All ports &mdash; worldwide"
+                     autocomplete="off" />
+              <div class="segmented" id="linksDirection" role="group" aria-label="Direction">
+                <button type="button" class="seg" data-value="outbound" aria-pressed="true">Destinations</button>
+                <button type="button" class="seg" data-value="inbound" aria-pressed="false">Origins</button>
+              </div>
+              <div class="segmented" id="linksScope" role="group" aria-label="Leg type">
+                <button type="button" class="seg" data-value="all" aria-pressed="true">All legs</button>
+                <button type="button" class="seg" data-value="international" aria-pressed="false">International</button>
+                <button type="button" class="seg" data-value="domestic" aria-pressed="false">Domestic</button>
+              </div>
+            </div>
+            <div class="chart-wrap">
+              <svg id="linksChart" viewBox="0 0 720 340"></svg>
+              <div class="chart-tip hidden" id="linksTip" role="status" aria-live="polite"></div>
+            </div>
+            <ul class="legend" id="linksLegend"></ul>
+          </section>
+        </main>
+
+        <!-- ===== Data register ===== -->
+        <main id="registerView" class="hidden">
+          <section class="panel">
+            <p class="panel-sub" id="registerSub">Loading&hellip;</p>
+            <div class="register-layout">
+              <div class="asset-list" id="assetList"></div>
+              <div class="asset-detail" id="assetDetail" aria-live="polite">
+                <p class="empty-note">Loading&hellip;</p>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
 
     <!-- Country detail. Opened from a bar in the per-country chart; a panel
          further down the page was too easy to miss. -->
@@ -200,7 +249,7 @@
       <section class="panel modal-panel" id="countryPanel">
         <button class="modal-close" id="countryClose" aria-label="Close country detail">×</button>
         <div class="panel-head">
-          <h2 id="countryTitle">Country time series</h2>
+          <h2 id="countryTitle">Country Time Series</h2>
           <div class="q-slot" data-quality-asset="port_raw.country_port_traffic"></div>
         </div>
         <p class="panel-sub" id="countrySub">Loading&hellip;</p>
@@ -218,5 +267,6 @@
   <script src="vessels.js"></script>
   <script src="dashboard.js"></script>
   <script src="register.js"></script>
+  <script src="nav.js"></script>
 </body>
 </html>
