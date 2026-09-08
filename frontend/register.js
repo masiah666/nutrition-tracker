@@ -4,9 +4,8 @@
  * A status is reported exactly as the API computes it. Red and amber are
  * information; nothing here softens or hides them.
  *
- * The view switcher lives in this file rather than its own because Auth
- * exposes a single onLogin callback and dashboard.js already holds it —
- * so the register loads lazily, the first time its view is shown. */
+ * The register is one section of the rail in nav.js. It loads lazily, the
+ * first time that section is opened, rather than on login. */
 (function () {
   "use strict";
 
@@ -120,9 +119,9 @@
     $("registerSub").textContent =
       assets.length + " asset" + (assets.length === 1 ? "" : "s") + " · " +
       counts.green + " green, " + counts.amber + " amber, " + counts.red + " red. " +
-      "Green means every check passed and the pipeline ran within " + STALE_AFTER_HOURS +
-      " hours; amber means the checks passed but the run is older than that; red means a " +
-      "check failed, or the asset has no checks at all.";
+      "Green: every check passed and the data was refreshed within " + STALE_AFTER_HOURS +
+      " hours. Amber: checks passed, but the refresh is older than that. Red: a check " +
+      "failed, or the asset has no checks.";
   }
 
   /* ===== Asset detail ===== */
@@ -350,25 +349,17 @@
     }
   }
 
-  /* ===== View switching ===== */
+  /* ===== Shown from the rail ===== */
 
-  const views = { dashboard: "dashboardView", register: "registerView" };
-
-  function showView(name) {
-    for (const key in views) {
-      $(views[key]).classList.toggle("hidden", key !== name);
-    }
-    $("viewNav").querySelectorAll(".seg").forEach((button) => {
-      button.setAttribute("aria-pressed", String(button.dataset.view === name));
-    });
-
-    if (name === "register" && !loadPromise) loadPromise = loadRegister();
-  }
+  /* The register loads the first time its section is opened, not on login. */
+  document.addEventListener("nav:section", (evt) => {
+    if (evt.detail.section === "register" && !loadPromise) loadPromise = loadRegister();
+  });
 
   /* "Full details" on a dashboard quality badge opens that asset here. */
   async function openAsset(key) {
-    showView("register");
-    $("viewNav").querySelector('[data-view="register"]').focus();
+    /* Synchronous, so the load it starts is already in loadPromise below. */
+    Nav.show("register", { focus: true });
 
     await loadPromise;
     /* Nothing to open onto if the register itself could not be loaded — its
@@ -378,8 +369,4 @@
   }
 
   document.addEventListener("registry:open", (evt) => openAsset(evt.detail.assetKey));
-
-  $("viewNav").querySelectorAll(".seg").forEach((button) => {
-    button.addEventListener("click", () => showView(button.dataset.view));
-  });
 })();

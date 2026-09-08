@@ -1,4 +1,19 @@
+/* How tall a chart may be: enough that the first card of a section is whole
+   before anything scrolls. A chart scales to its viewBox, so on a wide column
+   it is tall enough on its own to push its card off the screen — on a short
+   screen the chart is what gives, not the card's text. The subtracted figures
+   are the chrome above and around a chart; the second allows for a card that
+   also carries controls, chips or a legend.
+
+   Height is held by capping the *width* of the chart — never by max-height,
+   which would letterbox the SVG inside its box while the crosshairs and
+   tooltips go on mapping the pointer through the box's own width. What is
+   capped is the wrapper, so the SVG and the element its tooltip is positioned
+   against stay exactly the same width. */
 :root {
+  --chart-h: max(260px, calc(100vh - 340px));
+  --chart-h-controls: max(260px, calc(100vh - 415px));
+
   --bg: #0e1220;
   --surface: #171d2e;
   --surface-2: #202940;
@@ -40,7 +55,7 @@ body {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
-  padding: 14px 24px;
+  padding: 10px 24px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
@@ -56,10 +71,72 @@ body {
 .mark-globe { stroke: var(--muted); stroke-width: 1.4; }
 .mark-node { fill: var(--cyan); }
 
+/* ===== Shell: section rail beside the cards ===== */
+.shell {
+  display: flex;
+  align-items: flex-start;
+  max-width: 1340px;
+  margin: 0 auto;
+}
+
+.sidenav {
+  flex: none;
+  width: 232px;
+  align-self: stretch;
+  position: sticky;
+  top: 0;
+  padding: 18px 14px 40px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+/* The rail stretches to the full height of the cards beside it, so it is the
+   nav inside it that follows the reader down a long section. */
+.sidenav nav { position: sticky; top: 14px; }
+
+.nav-group {
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--muted);
+  margin: 0 12px 8px;
+}
+/* A second group is a different kind of thing, not more of the same — the
+   rule above it stops "Data Governance" reading as another data section. */
+.nav-group ~ .nav-group {
+  margin-top: 22px; padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.nav-list { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+
+.nav-item {
+  width: 100%; display: flex; flex-direction: column; gap: 1px;
+  padding: 9px 12px; text-align: left;
+  background: transparent; color: var(--text);
+  border: 1px solid transparent; border-radius: var(--radius-sm);
+}
+.nav-item:hover { background: var(--surface-2); }
+.nav-item:focus-visible { outline: 2px solid var(--cyan); outline-offset: 1px; }
+/* The chosen section carries a colour bar as well as a fill, so it does not
+   rest on a background shade alone. */
+.nav-item[aria-current="page"] {
+  background: var(--surface-2); border-color: var(--border);
+  box-shadow: inset 2px 0 0 var(--cyan);
+}
+.nav-name { font-size: 0.875rem; font-weight: 600; }
+.nav-note { font-size: 0.72rem; color: var(--muted); line-height: 1.35; }
+
+.views { flex: 1 1 auto; min-width: 0; }
+
+/* One head for whichever section is open; nav.js fills it from the rail. */
+.view-head {
+  max-width: var(--maxw); margin: 0 auto;
+  padding: 18px 24px 0;
+}
+.view-head h1 { font-size: 1.15rem; font-weight: 600; letter-spacing: -0.2px; }
+.view-head p { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
+
 main {
   max-width: var(--maxw);
   margin: 0 auto;
-  padding: 32px 24px 56px;
+  padding: 16px 24px 56px;
   /* The two charts are different grains; the gap keeps them from reading as
      one continuous panel. */
   display: flex;
@@ -72,12 +149,15 @@ main {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 22px;
+  padding: 20px;
 }
 .panel h2 {
-  font-size: 1rem; margin-bottom: 14px; font-weight: 600; letter-spacing: -0.1px;
+  font-size: 1rem; margin-bottom: 12px; font-weight: 600; letter-spacing: -0.1px;
 }
 .panel-sub { color: var(--muted); font-size: 0.85rem; margin: -8px 0 16px; }
+/* The register panel is titled by the view head, so its summary is the first
+   thing in the card and has no heading to sit under. */
+.panel > .panel-sub:first-child { margin-top: 0; }
 
 /* ===== Quality status =====
    Shared by the data register and the badges on the dashboard panels, so
@@ -258,7 +338,12 @@ button { cursor: pointer; font-size: 0.95rem; border-radius: var(--radius-sm); b
 #userName { font-weight: 500; font-size: 0.85rem; color: var(--muted); }
 
 /* ===== Port charts ===== */
-#topCountriesChart { width: 100%; height: auto; display: block; }
+/* 600 x 320 viewBox, and the one chart with no tooltip of its own to keep
+   aligned, so the cap can sit on the SVG itself. */
+#topCountriesChart {
+  width: 100%; height: auto; display: block;
+  max-width: calc(var(--chart-h) * 1.875);
+}
 /* SVG text has no inherited colour — every text node needs an explicit fill. */
 #topCountriesChart text { font-size: 11px; }
 .bar { fill: var(--cyan); }
@@ -283,6 +368,7 @@ button { cursor: pointer; font-size: 0.95rem; border-radius: var(--radius-sm); b
 .bar-row[aria-current="true"] .bar-value { fill: var(--text); }
 
 #regionsChart, #countryChart, #compareChart { width: 100%; height: auto; display: block; overflow: visible; }
+
 .grid { stroke: var(--border); stroke-width: 1; }
 .series-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .series-area { opacity: 0.12; stroke: none; }
@@ -334,7 +420,7 @@ button { cursor: pointer; font-size: 0.95rem; border-radius: var(--radius-sm); b
   padding: 5px 12px; font-size: 0.8rem; font-weight: 500; border-radius: 5px;
 }
 .seg:hover { color: var(--text); }
-.seg[aria-pressed="true"] { background: var(--surface); color: var(--text); }
+.seg[aria-pressed="true"] { background: var(--surface); color: var(--text); font-weight: 600; }
 .seg:focus-visible { outline: 2px solid var(--cyan); outline-offset: 1px; }
 
 /* ===== Comparison chips ===== */
@@ -369,6 +455,15 @@ button { cursor: pointer; font-size: 0.95rem; border-radius: var(--radius-sm); b
 
 /* ===== Chart tooltip ===== */
 .chart-wrap { position: relative; }
+/* The height cap, applied to the wrapper the tooltip is positioned against.
+   Every wrapped chart is a 720-unit viewBox 320 or 340 tall; the taller of the
+   two sets the ratio, so none of them exceeds the budget. The modal's chart is
+   left out — it is sized by the modal, not by the section below it. */
+/* Left-aligned, not centred: a capped chart then keeps its left edge on the
+   title, the controls and the legend below it. */
+#dashboardView .chart-wrap {
+  max-width: calc(var(--chart-h-controls) * 2.1176);
+}
 .chart-tip {
   position: absolute; top: 12px; left: 0; z-index: 5;
   pointer-events: none; min-width: 168px;
@@ -388,6 +483,22 @@ button { cursor: pointer; font-size: 0.95rem; border-radius: var(--radius-sm); b
 .chart-tip-row b { margin-left: auto; color: var(--text); font-variant-numeric: tabular-nums; }
 
 /* ===== Responsive ===== */
+/* The rail becomes a strip above the cards before the cards themselves get
+   narrow enough to reflow. */
+@media (max-width: 900px) {
+  .shell { flex-direction: column; }
+  .sidenav {
+    width: 100%; position: static; padding: 14px 18px;
+    border-right: none; border-bottom: 1px solid var(--border);
+  }
+  .nav-group { margin: 0 0 6px; }
+  .nav-group ~ .nav-group { margin-top: 14px; padding-top: 12px; }
+  .nav-list { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+  .nav-item { width: auto; }
+  .nav-note { display: none; }
+  .view-head { padding: 22px 18px 0; }
+}
+
 @media (max-width: 760px) {
   .topbar { flex-direction: column; align-items: stretch; }
   .topbar-right { justify-content: center; }
@@ -480,11 +591,6 @@ button { cursor: pointer; font-size: 0.95rem; border-radius: var(--radius-sm); b
 body.modal-open { overflow: hidden; }
 
 /* ===== Data register ===== */
-
-/* The view switcher sits between the brand and the user chip, so it does not
-   take the `margin-left: auto` the measure switch uses inside a card. */
-.viewnav { margin-left: 0; }
-.seg[aria-pressed="true"] { font-weight: 600; }
 
 /* Asset list beside the detail. One column once the detail pane would be
    narrower than its field table. */
