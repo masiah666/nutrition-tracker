@@ -50,9 +50,17 @@
   const barRows = new Map();
   let countryRequest = 0;
 
-  /* Every reporting country, ranked once on latest_teu. The API ranks on 2019,
-     which is not what the chart draws, so rank is computed here instead. */
+  /* Every country the comparison card can offer, with the summary figures its
+     chips show. The throughput card reads the series below instead. */
   let allCountries = [];
+
+  /* One row per country-year, as /api/port/countries/series sends it. The year
+     picker slices this in the browser: a year switch costs no request. */
+  let countrySeries = [];
+  /* Years present in the data, newest first — the picker's options. */
+  let seriesYears = [];
+  /* Countries with any figure at all, for the coverage count in the subtitle. */
+  let reportingCountries = 0;
 
   /* iso3 -> that country's full year/TEU points. One fetch per country, shared
      by the detail modal and the comparison card. */
@@ -88,7 +96,9 @@
 
   /* ===== Top countries ===== */
 
-  function drawTopCountries(countries) {
+  /* `year` is the year every bar is drawn from, or null in "Latest known" mode,
+     where each bar carries its own year and nothing is ranked. */
+  function drawTopCountries(countries, year) {
     const svg = $("topCountriesChart");
     svg.replaceChildren();
     barRows.clear();
@@ -96,7 +106,7 @@
     const data = countries.slice(0, TOP_N);
     if (!data.length) return;
 
-    const max = Math.max(...data.map((d) => d.latest_teu));
+    const max = Math.max(...data.map((d) => d.teu));
 
     const plotWidth = WIDTH - PAD_LEFT - PAD_RIGHT;
     const rowHeight = (HEIGHT - PAD_TOP - PAD_BOTTOM) / data.length;
@@ -104,15 +114,15 @@
 
     data.forEach((d, i) => {
       const y = PAD_TOP + i * rowHeight;
-      const barWidth = (d.latest_teu / max) * plotWidth;
+      const barWidth = (d.teu / max) * plotWidth;
 
       const row = el("g", {
         class: "bar-row",
         role: "button",
         tabindex: "0",
         "aria-label":
-          d.name + ", ranked " + d.globalRank + " worldwide, " + formatTeu(d.latest_teu) +
-          " TEU in " + d.latest_year + " — show time series",
+          d.name + ", " + (d.rank ? "ranked " + d.rank + " in " + year + ", " : "") +
+          formatTeu(d.teu) + " TEU in " + d.year + " — show time series",
       });
 
       /* Hit target spans the whole row, not just the bar, so short bars are
@@ -123,14 +133,18 @@
         class: "bar-hit",
       }));
 
-      /* Rank is against the whole field, not the filtered view, so a country
-         found by search still shows where it really sits. */
-      row.appendChild(el("text", {
-        x: RANK_X,
-        y: y + barHeight / 2 + 4,
-        "text-anchor": "end",
-        class: "bar-rank",
-      }, "#" + d.globalRank));
+      /* Rank is against every country reporting that year, not the filtered
+         view, so a country found by search still shows where it really sits.
+         "Latest known" leaves the column empty rather than rank figures that
+         come from different years. */
+      if (d.rank) {
+        row.appendChild(el("text", {
+          x: RANK_X,
+          y: y + barHeight / 2 + 4,
+          "text-anchor": "end",
+          class: "bar-rank",
+        }, "#" + d.rank));
+      }
 
       row.appendChild(el("text", {
         x: PAD_LEFT - 8,
@@ -147,13 +161,16 @@
         class: "bar",
       }));
 
-      /* Years differ from bar to bar, so each value carries its own. */
       const value = el("text", {
         x: PAD_LEFT + barWidth + 6,
         y: y + barHeight / 2 + 4,
         class: "bar-value",
-      }, formatTeu(d.latest_teu));
-      value.appendChild(el("tspan", { dx: "6", class: "bar-year" }, String(d.latest_year)));
+      }, formatTeu(d.teu));
+      /* In "Latest known" the years differ from bar to bar, so each value
+         carries its own; on a chosen year the subtitle already says it. */
+      if (!year) {
+        value.appendChild(el("tspan", { dx: "6", class: "bar-year" }, String(d.year)));
+      }
       row.appendChild(value);
 
       row.addEventListener("click", () => selectCountry(d, row));
@@ -172,15 +189,51 @@
 
   function fillRegionFilter() {
     const select = $("regionFilter");
-    [...new Set(allCountries.map((d) => d.region))].sort().forEach((region) => {
+    [...new Set(countrySeries.map((r) => r.region))].sort().forEach((region) => {
       select.appendChild(new Option(region, region));
     });
   }
 
-  function filteredCountries() {
+  function fillYearFilter() {
+    const select = $("yearFilter");
+    seriesYears.forEach((year) => {
+      select.appendChild(new Option(String(year), String(year)));
+    });
+  }
+
+  /* The chosen year, or null for "Latest known". */
+  function selectedYear() {
+    const value = $("yearFilter").value;
+    return value ? Number(value) : null;
+  }
+
+  /* The whole field for a mode, biggest first. A chosen year is one contest, so
+     its bars are ranked; "Latest known" takes each country's most recent figure
+     and those come from different years, so they are ordered but never ranked.
+     Ranking happens before the region and search filters, so a filtered bar
+     still shows its true worldwide position. */
+  function countriesForYear(year) {
+    let rows;
+    if (year) {
+      rows = countrySeries.filter((r) => r.year === year);
+    } else {
+      const latest = new Map();
+      countrySeries.forEach((r) => {
+        const held = latest.get(r.iso3);
+        if (!held || r.year > held.year) latest.set(r.iso3, r);
+      });
+      rows = [...latest.values()];
+    }
+
+    rows = rows.map((r) => Object.assign({}, r)).sort((a, b) => b.teu - a.teu);
+    if (year) rows.forEach((r, i) => { r.rank = i + 1; });
+    return rows;
+  }
+
+  function filteredCountries(rows) {
     const region = $("regionFilter").value;
     const query = $("countrySearch").value.trim().toLowerCase();
-    return allCountries.filter(
+    return rows.filter(
       (d) =>
         (!region || d.region === region) &&
         (!query || d.name.toLowerCase().includes(query))
@@ -188,11 +241,22 @@
   }
 
   function renderTopCountries() {
-    const matches = filteredCountries();
-    drawTopCountries(matches);
+    const year = selectedYear();
+    const field = countriesForYear(year);
+    const matches = filteredCountries(field);
+    drawTopCountries(matches, year);
+
+    /* Coverage is the whole world's, not the filtered view's — it says how much
+       of the world reported that year, which a region filter cannot change. */
+    const coverage = year
+      ? year + " — " + field.length + " of " + reportingCountries +
+        " countries reported"
+      : "";
 
     if (!matches.length) {
-      $("chartSub").textContent = "No reporting country matches this filter.";
+      $("chartSub").textContent =
+        (coverage ? coverage + ". " : "") +
+        "No reporting country matches this filter.";
       return;
     }
 
@@ -201,12 +265,17 @@
     const scope = [];
     if (region) scope.push("in " + region);
     if (query) scope.push('matching "' + query + '"');
+    const within = scope.length ? " " + scope.join(" ") : "";
 
-    $("chartSub").textContent =
-      "Top " + Math.min(TOP_N, matches.length) + " of " + matches.length +
-      " reporting countries" + (scope.length ? " " + scope.join(" ") : "") +
-      ". Each bar shows the country's most recent reported year, named beside the " +
-      "value. Select a country for its full history.";
+    const shown = Math.min(TOP_N, matches.length) + " of " + matches.length;
+
+    $("chartSub").textContent = year
+      ? coverage + "; top " + shown + within + ", ranked within the year. " +
+        "Select a country for its full history."
+      : "Top " + shown + " reporting countries" + within + ", each at its most " +
+        "recent reported year, named beside the value — mixed years, so the bars " +
+        "are not ranked; pick a year to rank like with like. " +
+        "Select a country for its full history.";
   }
 
   function selectCountry(country, trigger) {
@@ -682,26 +751,39 @@
     return points;
   }
 
+  async function loadCountrySeries() {
+    try {
+      countrySeries = await getJson("/api/port/countries/series");
+
+      if (!countrySeries.length) {
+        $("chartSub").textContent = "No country traffic data available.";
+        return;
+      }
+
+      seriesYears = [...new Set(countrySeries.map((r) => r.year))].sort((a, b) => b - a);
+      reportingCountries = new Set(countrySeries.map((r) => r.iso3)).size;
+
+      fillYearFilter();
+      fillRegionFilter();
+      renderTopCountries();
+    } catch (err) {
+      Log.error("Could not load country series:", err);
+      $("chartSub").textContent = "Could not load data.";
+    }
+  }
+
   async function loadCountries() {
     try {
-      const rows = await getJson("/api/port/countries");
-
-      /* Rank once, on the value the charts actually draw, and carry it so a
-         filtered leaderboard can still show a country's true position. */
-      allCountries = rows
+      allCountries = (await getJson("/api/port/countries"))
         .filter((d) => d.latest_teu !== null && d.latest_year !== null)
-        .sort((a, b) => b.latest_teu - a.latest_teu)
-        .map((d, i) => Object.assign({}, d, { globalRank: i + 1 }));
+        .sort((a, b) => b.latest_teu - a.latest_teu);
 
       if (!allCountries.length) {
-        $("chartSub").textContent = "No country traffic data available.";
         $("compareSub").textContent = "No country traffic data available.";
         return;
       }
 
-      fillRegionFilter();
       fillCompareOptions();
-      renderTopCountries();
 
       /* Seeded with the three largest so the card opens with something to read;
          everything in it is removable. */
@@ -711,7 +793,6 @@
       renderComparison();
     } catch (err) {
       Log.error("Could not load country data:", err);
-      $("chartSub").textContent = "Could not load data.";
       $("compareSub").textContent = "Could not load data.";
     }
   }
@@ -776,6 +857,7 @@
   }
 
   function load() {
+    loadCountrySeries();
     loadCountries();
     loadRegions();
     /* The vessel-arrival cards keep their own state and their own fetches; this
@@ -794,6 +876,7 @@
     load();
   }
 
+  $("yearFilter").addEventListener("change", renderTopCountries);
   $("regionFilter").addEventListener("change", renderTopCountries);
   $("countrySearch").addEventListener("input", renderTopCountries);
 

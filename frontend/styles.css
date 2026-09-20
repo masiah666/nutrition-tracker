@@ -406,6 +406,8 @@ button { cursor: pointer; font-size: 0.95rem; border-radius: var(--radius-sm); b
   font-size: 0.85rem; padding: 7px 10px;
 }
 .chart-controls select { min-width: 168px; }
+/* The year picker holds "Latest known" or a four-digit year, nothing wider. */
+.chart-controls select#yearFilter { min-width: 128px; }
 .chart-controls input { flex: 1 1 180px; max-width: 260px; }
 .chart-controls select:disabled { opacity: 0.5; cursor: not-allowed; }
 
