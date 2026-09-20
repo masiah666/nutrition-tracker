@@ -41,6 +41,10 @@ and must be read-only — `PORT_DB_USER` may later point at a SELECT-only role.
 - `GET /api/health`
 - `POST /api/register`, `POST /api/login` — existing auth, do not change
 - `GET /api/port/countries` — ranked country summary
+- `GET /api/port/countries/series` — every country's full TEU series, flat
+  (~2,200 rows, one per country-year, aggregates dropped). The throughput
+  card's year picker slices this in the browser, so switching year costs no
+  request
 - `GET /api/port/regions` — regional totals by year
 - `GET /api/port/country/{iso3}` — full time series for one country
 - `GET /api/port/calls/ports` — ports with arrival data, busiest 12 months first
@@ -107,6 +111,10 @@ The two `global` routes are declared above their `{portid}` siblings in
 
 - SVG text has no `fill`, so labels render black on a dark background
 - `PAD_LEFT` of 110 in dashboard.js truncates long country names
+- Container Throughput by Country ranks only within a single chosen year.
+  "Latest known" draws each country's most recent figure, and those come from
+  different years — a mixed-vintage field must not be ranked, so that mode
+  shows no rank numbers. Do not reintroduce one.
 - World Bank data: coverage drops sharply after 2019, so cross-country
   comparisons use 2019. Coordinates in `country_dim` are capital cities,
   not ports — do not present them as port locations.

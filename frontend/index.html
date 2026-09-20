@@ -122,10 +122,15 @@
           <section class="panel" data-section="throughput">
             <div class="panel-head">
               <h2>Container Throughput by Country</h2>
-              <div class="q-slot" data-quality-asset="port_mart.country_traffic_summary"></div>
+              <div class="q-slot" data-quality-asset="port_raw.country_port_traffic"></div>
             </div>
             <p class="panel-sub" id="chartSub">Loading&hellip;</p>
             <div class="chart-controls">
+              <!-- Years are filled from the data, newest first. "Latest known"
+                   is the default and the one mode that draws no ranks. -->
+              <select id="yearFilter" aria-label="Filter by year">
+                <option value="">Latest known</option>
+              </select>
               <select id="regionFilter" aria-label="Filter by region">
                 <option value="">All regions</option>
               </select>

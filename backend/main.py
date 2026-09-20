@@ -197,6 +197,43 @@ def port_countries():
         }
         for r in rows
     ]
+
+
+# The throughput card lets the reader pick a year, and a year switch must not
+# cost a request — so every country's whole series goes over in one flat read
+# (~2,200 rows) and the card slices it client-side. Aggregates are dropped here
+# the same way the summary mart drops them, so "of 168 countries" holds.
+@app.get("/api/port/countries/series")
+def port_countries_series():
+    """Every reporting country's full year/TEU series, one row per country-year."""
+    with get_port_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT t.country_iso3, d.country_name, d.region_name,
+                       t.traffic_year, t.teu
+                FROM port_raw.country_port_traffic t
+                JOIN port_raw.country_dim d
+                  ON d.country_iso3 = t.country_iso3
+                WHERE t.teu IS NOT NULL
+                  AND NOT d.is_aggregate
+                ORDER BY t.country_iso3, t.traffic_year
+                """
+            )
+            rows = cur.fetchall()
+
+    return [
+        {
+            "iso3": r[0],
+            "name": r[1],
+            "region": r[2],
+            "year": r[3],
+            "teu": r[4],
+        }
+        for r in rows
+    ]
+
+
 @app.get("/api/port/regions")
 def port_regions():
     """Regional traffic totals by year, for trend charts."""
